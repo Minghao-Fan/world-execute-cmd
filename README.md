@@ -45,14 +45,18 @@ live.bat --song path\to\any.mp3       :: 换一首歌
 
 ## 在其他设备上运行
 
+**唯一需要手动做的：放入歌曲。** 其余全部自动。
+
 ```bat
 git clone git@github.com:Minghao-Fan/world-execute-cmd.git
 cd world-execute-cmd
 :: 放入你自己的歌曲（版权原因不入库）
 copy <你的歌曲> input\song.mp3
-:: 首次准备 + 播放（自动装依赖、生成缓存；需要 PATH 里有 ffmpeg 和 Python 3.12+）
+:: 双击即用：没有 Python/ffmpeg 也会自动下载便携版并配置好
 live.bat
 ```
+
+要求：Windows 10/11、能联网（首次下载运行时与依赖）。`.tools/` 是自动下载的便携运行时目录（已在 .gitignore 中排除，不入库）。
 
 修改后同步回 GitHub：
 
@@ -62,15 +66,13 @@ sync.bat "修复左栏闪烁"
 
 ## 快速开始
 
-需要：
-- Python 3.12+，已装好 `pip install -r requirements.txt`；
-- ffmpeg（在 PATH 里）。
+**零前置，双击即用**：任意 Windows 机器上双击 `live.bat` 即可播放。缺失的运行时（Python 3.12、ffmpeg）会自动下载**便携版**到项目内 `.tools/`（不污染系统、不依赖固定盘符），自动装依赖、生成缓存。
 
 ```bat
 live.bat
 ```
 
-首次启动会自动检查运行时产物（22k 单声道音频、音频特征、替身舞者缓存），已就绪则直接播放。
+首次运行会按需下载（嵌入式 Python ~11 MB + 依赖 ~50 MB；ffmpeg 便携版 ~115 MB，仅当系统没有 ffmpeg 时），并自动生成运行时产物（22k 单声道音频、音频特征、替身舞者缓存，约 30 秒）。唯一的硬性前提：把歌曲放到 `input\song.mp3`（版权原因不入库）。
 
 - **画面**：默认 160×46 字符网格，窗口最大化效果最佳；可 `live.bat --cols 200 --rows 56` 加大网格。
 - **性能**：默认无后期处理，普通机器即可流畅播放；`--full-post` 启用 bloom/scanline/vignette 完整后期（更慢）。

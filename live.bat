@@ -1,49 +1,120 @@
 @echo off
 rem ===========================================================================
-rem  live.bat : one-click live terminal player (all paths relative -> runs anywhere)
+rem  live.bat : one-click live terminal player -- ZERO prerequisites.
+rem
+rem  Double-click on any Windows machine and it plays. If a component is
+rem  missing it is downloaded automatically into .tools\ (relative to this
+rem  file, never touching the system):
+rem    1/4 Python      -> reuse .venv, else a system Python >= 3.12, else a
+rem                       portable embedded Python 3.12 downloaded to .tools\python
+rem    2/4 ffmpeg      -> reuse PATH ffmpeg, else a portable build to .tools\ffmpeg
+rem    3/4 song check  -> needs your own input\song.mp3 (copyrighted, not in repo)
+rem    4/4 play        -> first-run also converts the song to 22k mono and
+rem                       generates audio features + stand-in dancer caches
 rem
 rem  usage: live.bat [--song input\song.mp3] [--cols 160] [--rows 46] [--t0 0]
 rem         live.bat --no-audio --full-post --t0 118
 rem  keys:  q quit | space pause | left/right -/+5s | [ ] -/+1s | p screenshot | h hint
-rem
-rem  first run (or after a fresh clone on another machine):
-rem    1/3 creates .venv and installs requirements.txt
-rem    2/3 converts input\song.mp3 to 22k mono, generates audio features
-rem        and the stand-in dancer caches (one-time, ~30 s)
-rem    3/3 plays
 rem ===========================================================================
 setlocal
 cd /d "%~dp0"
-set "PY=%~dp0.venv\Scripts\python.exe"
 set "SRC=%~dp0src"
+set "PY="
 
-rem ---- [1/3] virtualenv + deps --------------------------------------------
-if not exist "%PY%" (
-    echo [1/3] creating .venv ...
-    (py -3 -m venv "%~dp0.venv") || (python -m venv "%~dp0.venv") || goto :fail
-    "%PY%" -m pip install --quiet --disable-pip-version-check -r "%~dp0requirements.txt" || goto :fail
+rem ============================ [1/4] Python ================================
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PY=%~dp0.venv\Scripts\python.exe"
+    goto :py_ready
 )
 
-rem ---- [2/3] one-time runtime assets --------------------------------------
-echo [2/3] checking runtime assets ...
+set "SYS_PY="
+where py >nul 2>nul && for /f "delims=" %%p in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
+if defined SYS_PY ("%SYS_PY%" -c "import sys;sys.exit(0 if sys.version_info>=(3,12) else 1)" >nul 2>&1) || set "SYS_PY="
+if not defined SYS_PY (
+    where python >nul 2>nul && for /f "delims=" %%p in ('python -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
+    if defined SYS_PY ("%SYS_PY%" -c "import sys;sys.exit(0 if sys.version_info>=(3,12) else 1)" >nul 2>&1) || set "SYS_PY="
+)
+if defined SYS_PY (
+    echo [1/4] using system Python: %SYS_PY%
+    if not exist "%~dp0.venv" "%SYS_PY%" -m venv "%~dp0.venv" || goto :fail
+    set "PY=%~dp0.venv\Scripts\python.exe"
+    "%PY%" -m pip install --quiet --disable-pip-version-check -r "%~dp0requirements.txt" || goto :fail
+    goto :py_ready
+)
+
+echo [1/4] no system Python found - getting embedded Python 3.12 ...
+call :get_embed_py
+if errorlevel 1 goto :fail
+set "PY=%~dp0.tools\python\python.exe"
+
+:py_ready
+
+rem ============================ [2/4] ffmpeg ================================
+set "FF="
+where ffmpeg >nul 2>nul && set "FF=ffmpeg"
+if not defined FF (
+    if exist "%~dp0.tools\ffmpeg\bin\ffmpeg.exe" (
+        set "FF=%~dp0.tools\ffmpeg\bin\ffmpeg.exe"
+        set "WEC_FF=%~dp0.tools\ffmpeg\bin"
+    ) else (
+        echo [2/4] ffmpeg not found - downloading portable build ^(~115 MB, one-time^) ...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';$d='%~dp0.tools';if(!(Test-Path $d)){New-Item -ItemType Directory -Force -Path $d|Out-Null};$z=Join-Path $d 'ff.zip';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;Invoke-WebRequest -Uri $u -OutFile $z;Expand-Archive -Path $z -DestinationPath $d -Force;Remove-Item $z -Force;Get-ChildItem $d -Directory -Filter 'ffmpeg-*' | Rename-Item -NewName 'ffmpeg'" || goto :fail
+        set "FF=%~dp0.tools\ffmpeg\bin\ffmpeg.exe"
+        set "WEC_FF=%~dp0.tools\ffmpeg\bin"
+    )
+)
+
+rem ============================ [3/4] song check ============================
+if not exist "%~dp0input\song.mp3" (
+    echo.
+    echo live: input\song.mp3 not found.
+    echo       Put your own copy of the song there ^(Mili - world.execute^(me^);^), then run again.
+    echo       The song is copyrighted and is not part of the repository.
+    if not exist "%~dp0input" mkdir "%~dp0input"
+    goto :fail
+)
+
+rem ============================ [4/4] assets + play ========================
+echo [3/4] checking runtime assets ...
 if not exist "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" (
-    where ffmpeg >nul 2>nul || (echo live: ffmpeg not found on PATH & goto :fail)
-    ffmpeg -v error -y -i "%~dp0input\song.mp3" -ac 1 -ar 22050 "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" || goto :fail
+    echo       converting song to 22k mono ...
+    "%FF%" -v error -y -i "%~dp0input\song.mp3" -ac 1 -ar 22050 "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" || goto :fail
 )
 if not exist "%~dp0src\world_execute_replica\tui\engine\audio_features.json" (
+    echo       generating audio features ...
     set "PYTHONPATH=%SRC%"
     "%PY%" -c "import sys;sys.path.insert(0,r'%~dp0src');sys.path.insert(0,r'%~dp0src\world_execute_replica\_shims');import world_execute_replica.tui.engine.music as m;m.table()" || goto :fail
 )
 if not exist "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" (
-    echo [3/3] generating stand-in dancer caches ^(one-time, ~30 s^) ...
+    echo       generating stand-in dancer caches ^(one-time, ~30 s^) ...
     set "PYTHONPATH=%SRC%"
     "%PY%" "%~dp0src\world_execute_replica\dancer\placeholder.py" || goto :fail
 )
 
-rem ---- [3/3] play ----------------------------------------------------------
 set "PYTHONPATH=%SRC%"
 "%PY%" -m world_execute_replica.live %*
 exit /b %errorlevel%
+
+rem ---------------------------------------------------------------------------
+:get_embed_py
+set "EMB=%~dp0.tools\python"
+if not exist "%EMB%\python.exe" (
+    if not exist "%~dp0.tools" mkdir "%~dp0.tools"
+    echo       downloading https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip';$d='%~dp0.tools';$z=Join-Path $d 'py.zip';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;Invoke-WebRequest -Uri $u -OutFile $z;Expand-Archive -Path $z -DestinationPath '%EMB%' -Force;Remove-Item $z -Force" || exit /b 1
+    rem  enable site-packages in the embedded python (comment was "#import site")
+    for %%f in ("%EMB%\python*._pth") do (
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%%f';$c=[IO.File]::ReadAllText($p).Replace([string][char]0xFEFF,'').Replace('#import site','import site');[IO.File]::WriteAllText($p,$c,(New-Object Text.UTF8Encoding $false))"
+    )
+)
+"%EMB%\python.exe" -m pip --version >nul 2>&1 || (
+    echo       installing pip + dependencies ^(pillow, numpy^) ...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%EMB%\get-pip.py'" || exit /b 1
+    "%EMB%\python.exe" "%EMB%\get-pip.py" --no-warn-script-location --disable-pip-version-check || exit /b 1
+    del /q "%EMB%\get-pip.py" 2>nul
+)
+"%EMB%\python.exe" -m pip install --quiet --disable-pip-version-check -r "%~dp0requirements.txt" || exit /b 1
+exit /b 0
 
 :fail
 echo.

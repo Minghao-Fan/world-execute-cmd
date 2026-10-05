@@ -32,6 +32,17 @@ FPS = 24
 END_DEFAULT = 211.9
 
 
+def _ff(name: str) -> str:
+    """Resolve an ffmpeg-family tool: prefer the portable bin dir from `WEC_FF` (set by live.bat),
+    else PATH, else the bare name (lets the error surface naturally)."""
+    bindir = os.environ.get("WEC_FF", "")
+    if bindir:
+        p = Path(bindir) / (name + ".exe")
+        if p.exists():
+            return str(p)
+    return name
+
+
 # --------------------------------------------------------------------------- bootstrap
 
 def _bootstrap() -> None:
@@ -77,7 +88,7 @@ class AudioClock:
     def _start(self, t: float) -> None:
         self._stop_proc()
         self._proc = subprocess.Popen(
-            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", "-ss", f"{t:.3f}", str(self.song)],
+            [_ff("ffplay"), "-nodisp", "-autoexit", "-loglevel", "quiet", "-ss", f"{t:.3f}", str(self.song)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(self.START_DELAY)          # let it decode before the clock runs
         self._base = t
@@ -207,7 +218,7 @@ class Keys:
 
 def _probe_duration(song: Path) -> float:
     try:
-        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+        out = subprocess.run([_ff("ffprobe"), "-v", "error", "-show_entries", "format=duration",
                               "-of", "csv=p=0", str(song)], capture_output=True, text=True,
                              timeout=20).stdout.strip()
         return float(out)
@@ -241,7 +252,7 @@ def main() -> int:
     timeline, engine = _bootstrap()
     if not a.full_post:
         _patch_fast()
-    if not a.no_audio and shutil.which("ffplay") is None:
+    if not a.no_audio and _ff("ffplay") == "ffplay" and shutil.which("ffplay") is None:
         print("live: ffplay not found on PATH (needed for audio); use --no-audio to render silently", file=sys.stderr)
         return 2
 

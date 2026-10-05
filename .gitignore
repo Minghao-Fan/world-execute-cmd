@@ -38,3 +38,6 @@ src/world_execute_replica/dsh/assets/avatars/
 src/world_execute_replica/dsh/batches/avatars/
 src/world_execute_replica/dsh/avatars/
 src/world_execute_replica/tui/engine/audio_features.json
+
+# portable runtimes downloaded on demand (python embed, ffmpeg)
+.tools/
