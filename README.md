@@ -33,6 +33,33 @@ live.bat --song path\to\any.mp3       :: 换一首歌
 按键：q 退出 · space 暂停 · ←/→ 跳 ±5 s · [ / ] 跳 ±1 s · p 存当前帧到 `output/live/` · h 键位提示。
 详见 [docs/LIVE.md](docs/LIVE.md)。
 
+### 一键脚本（相对路径，可在任意设备直接运行）
+
+| 脚本 | 作用 |
+|---|---|
+| `live.bat` | 启动实时播放；首次运行自动创建 `.venv`、转码歌曲、生成音频特征与替身舞者缓存（约 30 秒） |
+| `preview.bat [秒]` | 离线渲染一张终端效果预览图到 `output/live/`（不启动播放器） |
+| `sync.bat ["提交信息"]` | git add -A → commit → `git push` 到 GitHub（ssh），默认提交信息带时间戳 |
+
+所有脚本都用 `%~dp0` 相对自身位置定位文件，不依赖固定盘符；`git clone` 到任何机器后双击 `live.bat` 即可运行。
+
+## 在其他设备上运行
+
+```bat
+git clone git@github.com:Minghao-Fan/world-execute-cmd.git
+cd world-execute-cmd
+:: 放入你自己的歌曲（版权原因不入库）
+copy <你的歌曲> input\song.mp3
+:: 首次准备 + 播放（自动装依赖、生成缓存；需要 PATH 里有 ffmpeg 和 Python 3.12+）
+live.bat
+```
+
+修改后同步回 GitHub：
+
+```bat
+sync.bat "修复左栏闪烁"
+```
+
 ## 快速开始
 
 需要：
