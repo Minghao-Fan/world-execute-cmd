@@ -11,14 +11,17 @@ Picture modes (selectable via `--render`):
 
 Colors are always TrueColor (24-bit); per cell the dots use one foreground for
 the lit pixels and one background for the unlit pixels.
+
+Simulated text -> real terminal text: every ImageDraw.text call during frame
+rendering is intercepted (see install_text_capture); mid-size informational
+text is darkened in the source frame and re-rendered by the player as native
+terminal text at the same grid position, instead of smearing into braille dots.
 """
 from __future__ import annotations
 
 import ctypes
 import os
-import sys
 import unicodedata
-from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -49,7 +52,6 @@ HIDE_CURSOR = "\x1b[?25l"
 SHOW_CURSOR = "\x1b[?25h"
 ALT_ON = "\x1b[?1049h"
 ALT_OFF = "\x1b[?1049l"
-BEEP = "\x07"
 
 FULL_W, FULL_H = 1280, 720
 
@@ -100,15 +102,47 @@ def pad_text(s: str, width: int, fill: str = " ") -> str:
     return "".join(out) + fill * (width - w)
 
 
-@dataclass
-class Cell:
-    ch: str = " "
-    fg: tuple = GREY
-    bg: tuple = BG
+# ---------------------------------------------------------------- text capture
+# Every ImageDraw.text during the frame render is routed here. Mid-size text
+# (the "simulated text" that smears into braille dots) is darkened in the frame
+# and recorded; the player overlays it as real terminal text. Tiny captions and
+# huge effect titles stay pixel-rendered on purpose.
+
+_TEXTS: list[tuple[int, int, str, int, tuple]] = []
+_ORIG_TEXT = ImageDraw.ImageDraw.text
+
+
+def install_text_capture() -> None:
+    """Patch ImageDraw.text so source text becomes native terminal text."""
+    ImageDraw.ImageDraw.text = _capture_text
+
+
+def _capture_text(self, xy, text, font=None, fill=None, *a, **k):
+    size = getattr(font, "size", 0)
+    if not (size and text):
+        return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
+    x0, y0 = int(xy[0]), int(xy[1])
+    # persistent header boxes are handled by chrome_top (and _strip_chrome);
+    # never double-overlay them.
+    for bx0, by0, bx1, by1 in CHROME_BOXES:
+        if bx0 - 6 <= x0 <= bx1 and by0 - 6 <= y0 <= by1:
+            return None
+    if 10 <= size <= 34:
+        try:
+            bb = font.getbbox(text)
+            w, h = bb[2] - bb[0], bb[3] - bb[1]
+        except Exception:
+            w, h = int(size * 0.6) * len(text), int(size * 1.2)
+        if w > 0 and h > 0:
+            self.rectangle([x0, y0, x0 + w, y0 + h], fill=(6, 5, 3))
+        fill_c = tuple(fill) if isinstance(fill, (tuple, list)) and len(fill) == 3 else (255, 176, 0)
+        _TEXTS.append((x0, y0, str(text), size, fill_c))
+        return None
+    return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
 
 
 class TermScreen:
-    """Full-window picture + a bottom chat overlay (no panes, no status bar)."""
+    """Full-window picture + bottom chat overlay (no panes, no status bar)."""
 
     def __init__(self, cols: int = 160, rows: int = 46, left_cols: int = 0,
                  chat_rows: int = 10, mode: str = "braille",
@@ -202,70 +236,100 @@ class TermScreen:
 
     def render_lines(self, img: Image.Image,
                      chat_lines: list[tuple[str, tuple, tuple]],
-                     chrome_top: str = "") -> list[str]:
-        """Return the frame as a list of full ANSI lines (each ends with \\r\\n).
+                     chrome_top: str = "",
+                     texts: list[tuple[int, int, str, int, tuple]] | None = None) -> list[str]:
+        """Return the frame as a fixed-length list of ANSI lines (rows total;
+        the last line ends with \\r so the console never scrolls).
 
-        The player diffs consecutive frames and only re-emits changed lines.
+        Pipeline: dot picture -> char grid -> overlay chrome/texts/chat on the
+        grid -> per-line run-length ANSI. The player diffs consecutive frames.
         """
-        lines: list[str] = []
         if self.mode == "braille":
             fg, bg, mask = self._picture_braille(img)
-            for r in range(self.pane_rows):
-                lines.append(self._line_braille(fg[r], bg[r], mask[r]) + ERASE_LINE + "\r\n")
+            grid = [[(chr(0x2800 + int(mask[r, c])), tuple(fg[r, c]), tuple(bg[r, c]))
+                     for c in range(self.pic_cols)] for r in range(self.pane_rows)]
         else:
             top, bot = self._picture_half(img)
-            for r in range(self.pane_rows):
-                lines.append(self._line_half(top[r], bot[r]) + ERASE_LINE + "\r\n")
+            grid = [[("\u2580", tuple(top[r, c]), tuple(bot[r, c]))
+                     for c in range(self.pic_cols)] for r in range(self.pane_rows)]
 
         if chrome_top:
-            lines[0] = self._sgr(UI, BG) + pad_text(chrome_top, self.cols) + ERASE_LINE + "\r\n"
+            self._fill_row(grid, 0, pad_text(chrome_top, self.cols), UI, BG)
+
+        if texts:
+            self._overlay_texts(grid, texts)
 
         start = self.rows - self.chat_rows
         for r in range(start, self.rows):
             idx = r - start
             if idx < len(chat_lines):
                 text, fg_c, bg_c = chat_lines[idx]
-                lines.append(self._sgr(fg_c, bg_c) + pad_text(text, self.cols) + ERASE_LINE + "\r\n")
+                self._fill_row(grid, r, pad_text(text, self.cols), fg_c, bg_c)
             else:
-                lines.append(self._sgr(GREY, BG) + " " * self.cols + ERASE_LINE + "\r\n")
+                self._fill_row(grid, r, " " * self.cols, GREY, BG)
+
+        lines = [self._grid_line(grid[r]) + ERASE_LINE
+                 + ("\r\n" if r < self.rows - 1 else "\r") for r in range(self.rows)]
         return lines
+
+    def _overlay_texts(self, grid: list, texts: list[tuple[int, int, str, int, tuple]]) -> None:
+        """Blit captured source texts onto the grid as native terminal text."""
+        for (x, y, s, size, fg_c) in texts:
+            col = x * self.cols // FULL_W
+            row = y * self.rows // FULL_H
+            rows_take = max(1, min(3, (int(size * 1.1 * self.rows * 4 / FULL_H) + 3) // 4))
+            if not (0 <= row < self.pane_rows and 0 <= col < self.cols):
+                continue
+            avail = self.cols - col
+            chars: list[str] = []
+            for ch in s:
+                cw = wcwidth(ch)
+                if cw > avail:
+                    break
+                chars.append(ch)
+                avail -= cw
+            if not chars:
+                continue
+            for rr in range(row, min(row + rows_take, self.rows)):
+                if rr >= self.pane_rows:
+                    break
+                self._fill_row(grid, rr, "".join(chars), fg_c, BG, col)
+
+    @staticmethod
+    def _fill_row(grid: list, r: int, text: str, fg: tuple, bg: tuple, col0: int = 0) -> None:
+        """Write one grid row at col0; CJK wide chars occupy 2 columns, with a
+        bg-coloured placeholder cell after them so nothing overlaps."""
+        c = col0
+        for ch in text:
+            cw = wcwidth(ch)
+            if c + cw > len(grid[r]):
+                break
+            grid[r][c] = (ch, fg, bg)
+            if cw == 2 and c + 1 < len(grid[r]):
+                grid[r][c + 1] = (" ", bg, bg)
+            c += cw
+
+    @staticmethod
+    def _grid_line(row: list[tuple[str, tuple, tuple]]) -> str:
+        out: list[str] = []
+        prev = None
+        run: list[str] = []
+        for (ch, fg, bg) in row:
+            key = (fg, bg)
+            if key == prev:
+                run.append(ch)
+            else:
+                if prev is not None:
+                    out.append(TermScreen._sgr(prev[0], prev[1]) + "".join(run))
+                prev, run = key, [ch]
+        if prev is not None:
+            out.append(TermScreen._sgr(prev[0], prev[1]) + "".join(run))
+        return "".join(out)
 
     def render(self, img: Image.Image, chat_lines: list[tuple[str, tuple, tuple]],
                status1: str = "", status2: str = "") -> str:
         """Convenience: full frame as one ANSI string (HOME + all lines + RESET)."""
         return HOME + "".join(self.render_lines(img, chat_lines)) + RESET
-
-    def _line_half(self, top: np.ndarray, bot: np.ndarray) -> str:
-        out: list[str] = []
-        prev = None
-        run = 0
-        for c in range(self.pic_cols):
-            key = (tuple(top[c]), tuple(bot[c]))
-            if key == prev:
-                run += 1
-                continue
-            if prev is not None:
-                out.append(self._sgr(prev[0], prev[1]) + "\u2580" * run)
-            prev, run = key, 1
-        if prev is not None:
-            out.append(self._sgr(prev[0], prev[1]) + "\u2580" * run)
-        return "".join(out)
-
-    def _line_braille(self, fg: np.ndarray, bg: np.ndarray, mask: np.ndarray) -> str:
-        out: list[str] = []
-        prev = None
-        run = 0
-        for c in range(self.pic_cols):
-            key = (tuple(fg[c]), tuple(bg[c]), int(mask[c]))
-            if key == prev:
-                run += 1
-                continue
-            if prev is not None:
-                out.append(self._sgr(prev[0], prev[1]) + chr(0x2800 + prev[2]) * run)
-            prev, run = key, 1
-        if prev is not None:
-            out.append(self._sgr(prev[0], prev[1]) + chr(0x2800 + prev[2]) * run)
-        return "".join(out)
 
     @staticmethod
     def _sgr(fg: tuple, bg: tuple) -> str:

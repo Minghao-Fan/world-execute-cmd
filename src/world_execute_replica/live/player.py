@@ -266,7 +266,8 @@ def main() -> int:
 
     end = min(engine.SONG_LEN, _probe_duration(song))
     from world_execute_replica.live.terminal import (ALT_OFF, ALT_ON, CLEAR, HIDE_CURSOR, HOME, RESET,
-                                                     SHOW_CURSOR, TermScreen, pad_text, setup_vt)
+                                                     SHOW_CURSOR, TermScreen, _TEXTS, install_text_capture,
+                                                     pad_text, setup_vt)
     from world_execute_replica.live.chat import ChatView
 
     setup_vt()
@@ -274,6 +275,7 @@ def main() -> int:
     screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render,
                         dot_offset=a.dot_offset, dot_cap=a.dot_cap)
     chat = ChatView(40)
+    install_text_capture()
     clock = AudioClock(song, a.t0) if not a.no_audio else SimClock(a.fps, a.t0)
 
     # terminal entrance
@@ -321,6 +323,8 @@ def main() -> int:
             last_n = n
             t_frame = n / FPS
             img = timeline.frame(n)
+            texts = _TEXTS[:]
+            _TEXTS.clear()
             t0_ = time.monotonic()
 
             lines = chat.lines(t)
@@ -332,7 +336,7 @@ def main() -> int:
                 overlay[0] = (pad_text(title, 108) + "  " + stats, tfg, tbg)
             ct = engine.chrome_texts(t, engine.chapter_at(t_frame))
             chrome = ct["title"].ljust(42) + ct["mid"].ljust(60) + ct["right"].ljust(58)
-            frame = screen.render_lines(img, overlay, chrome_top=chrome)
+            frame = screen.render_lines(img, overlay, chrome_top=chrome, texts=texts)
             if prev_lines is None:
                 out.write(HOME + "".join(frame))
             else:
