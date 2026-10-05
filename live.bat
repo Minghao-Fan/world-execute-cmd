@@ -102,8 +102,9 @@ if not exist "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" (
 )
 
 echo.
-echo [4/4] playing - the window maximises and the grid auto-fits it; for a
-echo        custom size run:  live.bat --cols 220 --rows 50.
+echo [4/4] playing - the grid auto-fits your window width; maximize the
+echo        window for the sharpest picture, or set a size with
+echo        live.bat --cols 220 --rows 50.
 echo.
 set "PYTHONPATH=%SRC%"
 "%PY%" -m world_execute_replica.live %*

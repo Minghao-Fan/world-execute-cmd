@@ -230,18 +230,6 @@ def _fmt(sec: float) -> str:
     return f"{int(mm):02d}:{ss:04.1f}"
 
 
-def _maximize_console() -> None:
-    """Maximize the console window so the auto-fit renderer uses the largest
-    possible grid; a no-op when there is no console (e.g. redirected runs)."""
-    try:
-        import ctypes
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 3)   # SW_MAXIMIZE
-    except Exception:
-        pass
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--song", default=str(ROOT / "input" / "song.mp3"), help="audio file to play (any format ffmpeg reads)")
@@ -282,7 +270,6 @@ def main() -> int:
                                                      pad_text, setup_vt)
     from world_execute_replica.live.chat import ChatView
 
-    _maximize_console()
     setup_vt()
     if a.cols is None:
         # auto-fit the terminal: the ops ticker keeps its right margin 3 columns
