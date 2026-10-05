@@ -30,6 +30,8 @@ def main() -> int:
     ap.add_argument("--dot-offset", type=float, default=16.0)
     ap.add_argument("--dot-cap", type=float, default=170.0)
     ap.add_argument("--gamma", type=float, default=0.62)
+    ap.add_argument("--post", action="store_true",
+                    help="keep bloom/scanline/vignette (default: fast frame)")
     a = ap.parse_args()
 
     sys.path.insert(0, str(PKG))
@@ -39,7 +41,8 @@ def main() -> int:
                                                      pad_text)
     import world_execute_replica.tui.continuity.timeline as tlm
 
-    _patch_fast()
+    if not a.post:
+        _patch_fast()
     install_text_capture()
 
     n = round(a.t0 * 24)
