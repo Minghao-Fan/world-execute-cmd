@@ -28,12 +28,19 @@ if exist "%~dp0.venv\Scripts\python.exe" (
 )
 
 set "SYS_PY="
-where py >nul 2>nul && for /f "delims=" %%p in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
-if defined SYS_PY ("%SYS_PY%" -c "import sys;sys.exit(0 if sys.version_info>=(3,12) else 1)" >nul 2>&1) || set "SYS_PY="
+rem  try `python` first (most common). Store "App Execution Aliases" live under
+rem  %LOCALAPPDATA%\Microsoft\WindowsApps and fail at runtime when the app is
+rem  missing, so any result there is discarded and we fall through to the
+rem  embedded Python instead.
+where python >nul 2>nul
+if not errorlevel 1 for /f "delims=" %%p in ('python -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
+if defined SYS_PY (echo %SYS_PY%|findstr /i "WindowsApps" >nul && set "SYS_PY=")
 if not defined SYS_PY (
-    where python >nul 2>nul && for /f "delims=" %%p in ('python -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
-    if defined SYS_PY ("%SYS_PY%" -c "import sys;sys.exit(0 if sys.version_info>=(3,12) else 1)" >nul 2>&1) || set "SYS_PY="
+    where py >nul 2>nul
+    if not errorlevel 1 for /f "delims=" %%p in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "SYS_PY=%%p"
+    if defined SYS_PY (echo %SYS_PY%|findstr /i "WindowsApps" >nul && set "SYS_PY=")
 )
+if defined SYS_PY ("%SYS_PY%" -c "import sys;sys.exit(0 if sys.version_info>=(3,12) else 1)" >nul 2>&1) || set "SYS_PY="
 if defined SYS_PY (
     echo [1/4] using system Python: %SYS_PY%
     if not exist "%~dp0.venv" "%SYS_PY%" -m venv "%~dp0.venv" || goto :fail
