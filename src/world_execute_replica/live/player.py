@@ -18,6 +18,7 @@ the audio; pass --full-post to restore the full film look (slower).
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import subprocess
@@ -338,7 +339,13 @@ def main() -> int:
                 used = int(t / end * 128) if end else 0
                 stats = f"ctx {used}K/128K · temp 0.70 · top-p 0.90"
                 overlay[0] = (pad_text(title, 108) + "  " + stats, tfg, tbg)
-            frame = screen.render_lines(img, overlay)
+            chrome = (f"WORLD.EXECUTE(ME);   whale@deepsea:~$".ljust(42)
+                      + (f"step {int(t * 412):08d}   loss "
+                         f"{2.2 * math.exp(-t / 28) + 0.31 + 0.02 * math.sin(t * 9.1):.4f}"
+                         f"   tok/s {140 + 12 * math.sin(t * 3.1):6.1f}").ljust(60)
+                      + (f"{engine.chapter_at(t_frame)}   {int(t // 60):02d}:{t % 60:04.1f}"
+                         f" / 03:32   RUNNING").ljust(58))
+            frame = screen.render_lines(img, overlay, chrome_top=chrome)
             if prev_lines is None:
                 out.write(HOME + "".join(frame))
             else:

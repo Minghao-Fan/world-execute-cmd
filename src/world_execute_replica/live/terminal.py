@@ -21,7 +21,7 @@ import unicodedata
 from dataclasses import dataclass
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 # palette from tuikit (amber), reused for the terminal chrome so the window
 # looks like the film's system colour
@@ -52,6 +52,11 @@ ALT_OFF = "\x1b[?1049l"
 BEEP = "\x07"
 
 FULL_W, FULL_H = 1280, 720
+
+# persistent terminal chrome in the source frame (tui/engine/core.py header):
+# title / step-loss-tps / right status. Darkened so the braille picture shows a
+# clean base; the player overlays real terminal text there instead.
+CHROME_BOXES = ((24, 6, 430, 36), (330, 6, 692, 36), (960, 6, 1256, 36))
 
 # Braille dot bitmasks, Unicode order: cols x rows layout inside one cell.
 #   dot1=1  dot4=8
@@ -119,6 +124,7 @@ class TermScreen:
         self.sep_col = 0
         self.pic_cols = self.cols
         self.mode = mode if mode in ("braille", "half") else "braille"
+        self.strip_chrome = True
         self.dot_offset = float(dot_offset)
         self.dot_cap = float(dot_cap)
         self._prev = None
@@ -143,8 +149,18 @@ class TermScreen:
 
     # ------------------------------------------------------------- picture
 
+    def _strip_chrome(self, img: Image.Image) -> Image.Image:
+        """Darken the persistent header boxes so source text does not smear into
+        the braille dots; the player overlays real terminal text there instead."""
+        d = ImageDraw.Draw(img)
+        for x0, y0, x1, y1 in CHROME_BOXES:
+            d.rectangle([x0, y0, x1, y1], fill=(6, 5, 3))
+        return img
+
     def _downscaled(self, img: Image.Image, w_px: int, h_px: int) -> np.ndarray:
         """LANCZOS downscale + light unsharp -> letterboxed RGB ndarray."""
+        if self.strip_chrome:
+            img = self._strip_chrome(img)
         small = img.convert("RGB").resize((self.pic_w, self.pic_h), Image.LANCZOS)
         small = small.filter(ImageFilter.UnsharpMask(radius=2, percent=90, threshold=2))
         canvas = Image.new("RGB", (w_px, h_px), BG)
@@ -185,7 +201,8 @@ class TermScreen:
     # ------------------------------------------------------------- build
 
     def render_lines(self, img: Image.Image,
-                     chat_lines: list[tuple[str, tuple, tuple]]) -> list[str]:
+                     chat_lines: list[tuple[str, tuple, tuple]],
+                     chrome_top: str = "") -> list[str]:
         """Return the frame as a list of full ANSI lines (each ends with \\r\\n).
 
         The player diffs consecutive frames and only re-emits changed lines.
@@ -199,6 +216,9 @@ class TermScreen:
             top, bot = self._picture_half(img)
             for r in range(self.pane_rows):
                 lines.append(self._line_half(top[r], bot[r]) + ERASE_LINE + "\r\n")
+
+        if chrome_top:
+            lines[0] = self._sgr(UI, BG) + pad_text(chrome_top, self.cols) + ERASE_LINE + "\r\n"
 
         start = self.rows - self.chat_rows
         for r in range(start, self.rows):
