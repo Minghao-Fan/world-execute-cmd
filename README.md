@@ -23,11 +23,13 @@ Node/Playwright). Bring your own copy of the song, then run `live.bat`. The code
 
 ## 实时终端播放（LIVE）
 
-不生成视频文件：画面逐帧渲染进终端、随音乐同步播放。左侧用文字流模拟 dsh 聊天窗口，右侧是 TUI 引擎的完整画面（半块字符）。
+不生成视频文件：画面逐帧渲染进终端、随音乐同步播放。**画面全屏铺满整个终端窗口**（半块字符，160 列全宽），dsh 对话以浮层形式叠在画面底部 10 行——不再是独立的左侧栏，画面空间最大化（16:9 源几乎无黑边）。
 
 ```bat
-live.bat                              :: 播放 input/song.mp3
-live.bat --song path\to\any.mp3       :: 换一首歌
+live.bat                                :: 播放 input/song.mp3
+live.bat --song path\to\any.mp3         :: 换一首歌
+live.bat --cols 200 --rows 56           :: 加大网格（窗口需够大，画面更清晰）
+live.bat --chat-rows 6                  :: 底部聊天浮层行数（默认 10）
 ```
 
 按键：q 退出 · space 暂停 · ←/→ 跳 ±5 s · [ / ] 跳 ±1 s · p 存当前帧到 `output/live/` · h 键位提示。

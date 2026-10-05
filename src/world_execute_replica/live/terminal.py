@@ -90,14 +90,16 @@ class Cell:
 class TermScreen:
     """Builds one ANSI frame: chat pane text + picture pane half-blocks + status rows."""
 
-    def __init__(self, cols: int = 160, rows: int = 46, left_cols: int = 42):
+    def __init__(self, cols: int = 160, rows: int = 46, left_cols: int = 0,
+                 chat_rows: int = 10):
         self.cols = max(40, cols)
         self.rows = max(12, rows)
-        self.left_cols = max(10, min(left_cols, self.cols // 4))
-        self.status_rows = 2
-        self.pane_rows = self.rows - self.status_rows
-        self.sep_col = self.left_cols              # single separator column
-        self.pic_cols = self.cols - self.left_cols - 1
+        self.left_cols = 0                         # no side pane anymore
+        self.chat_rows = max(4, min(chat_rows, self.rows // 2))
+        self.status_rows = 0                       # status bar removed
+        self.pane_rows = self.rows                 # picture takes the whole window
+        self.sep_col = 0
+        self.pic_cols = self.cols
         self._prev = None                          # optional diffing (unused in v1)
         # precompute picture geometry: letterboxed 1280x720 -> pic_cols x pic_rows*2 px
         scale = min(self.pic_cols / FULL_W, self.pane_rows * 2 / FULL_H)
@@ -123,25 +125,24 @@ class TermScreen:
     # ------------------------------------------------------------------- build
 
     def render(self, img: Image.Image, chat_lines: list[tuple[str, tuple]],
-               status1: str, status2: str) -> str:
+               status1: str = "", status2: str = "") -> str:
+        """Full-window picture + a bottom chat overlay. Status args are ignored."""
         top, bot = self._picture(img)
         buf: list[str] = [HOME]
         for r in range(self.pane_rows):
-            # left pane: text (padded to the pane width only, so the row stays
-            # left_cols + 1 + pic_cols == cols and never wraps in the terminal)
-            if r < len(chat_lines):
-                text, fg = chat_lines[r]
-                buf.append(self._line_text(text, fg, self.left_cols))
-            else:
-                buf.append(self._line_text("", GREY, self.left_cols))
-            # separator
-            buf.append(self._cell_char("│", DIM, BG))
-            # right pane: half blocks
             buf.append(self._line_picture(top[r], bot[r]))
             buf.append(ERASE_LINE + "\r\n")
-        buf.append(self._line_text(status1, UI))
-        buf.append(ERASE_LINE + "\r\n")
-        buf.append(self._line_text(status2, ME_TEXT))
+        # chat overlay: the last chat_rows lines become a solid BG block with
+        # text -- reads as part of the picture, not a separate pane.
+        start = self.rows - self.chat_rows
+        for r in range(start, self.rows):
+            idx = r - start
+            if idx < len(chat_lines):
+                text, fg = chat_lines[idx]
+                buf.append(self._sgr(fg, BG) + pad_text(text, self.cols))
+            else:
+                buf.append(self._sgr(GREY, BG) + " " * self.cols)
+            buf.append(ERASE_LINE + "\r\n")
         buf.append(RESET)
         return "".join(buf)
 

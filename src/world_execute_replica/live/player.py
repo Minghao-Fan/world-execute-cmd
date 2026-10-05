@@ -236,6 +236,8 @@ def main() -> int:
     ap.add_argument("--song", default=str(ROOT / "input" / "song.mp3"), help="audio file to play (any format ffmpeg reads)")
     ap.add_argument("--cols", type=int, default=160, help="terminal columns (default 160)")
     ap.add_argument("--rows", type=int, default=46, help="terminal rows (default 46)")
+    ap.add_argument("--chat-rows", type=int, default=10,
+                    help="chat overlay rows at the bottom (default 10)")
     ap.add_argument("--left", type=int, default=0, help="chat pane width (default auto)")
     ap.add_argument("--fps", type=float, default=24.0, help="--no-audio target fps (default 24)")
     ap.add_argument("--t0", type=float, default=0.0, help="start at this song time (seconds)")
@@ -262,16 +264,10 @@ def main() -> int:
     from world_execute_replica.live.chat import ChatView
 
     setup_vt()
-    left = a.left or max(34, a.cols // 4)
-    screen = TermScreen(a.cols, a.rows, left)
-    chat = ChatView(left)
+    chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
+    screen = TermScreen(a.cols, a.rows, 0, chat_rows)
+    chat = ChatView(40)
     clock = AudioClock(song, a.t0) if not a.no_audio else SimClock(a.fps, a.t0)
-
-    def lyric_at(t: float) -> str:
-        for t0, t1, s in engine.LYRICS:
-            if t0 <= t < t1:
-                return s
-        return ""
 
     # terminal entrance
     out = sys.stdout
@@ -326,11 +322,8 @@ def main() -> int:
             t0_ = time.monotonic()
 
             lines = chat.lines(t)
-            st1 = f"{_fmt(t)} / {_fmt(end)} · {engine.chapter_at(t_frame)} · {song.name}"
-            lyric = lyric_at(t)
-            hint = "space 暂停  ←→ ±5s  q 退出  p 截图" if show_hint else ""
-            st2 = (lyric + " " * 4 + hint) if lyric else hint
-            buf = screen.render(img, lines, st1, st2)
+            overlay = lines[:3] + lines[3:][-(chat_rows - 3):] if len(lines) > 3 else lines
+            buf = screen.render(img, overlay)
             out.write(buf)
             out.flush()
             if isinstance(clock, SimClock):
