@@ -12,6 +12,13 @@ Picture modes (selectable via `--render`):
 Colors are always TrueColor (24-bit); per cell the dots use one foreground for
 the lit pixels and one background for the unlit pixels.
 
+Brightness pipeline: the mean map (LANCZOS) provides the per-cell colours; a
+parallel max map (BOX to 2x then 2x2 max-pool) feeds the dot decision so sparse
+bright dots (globe dot-clouds, particles, scatter) survive downscaling. The dot
+decision is per-cell min/max normalised: a dot lights when it reaches the top
+~30% of its cell's range (norm >= 0.7), uniform areas stay off, and dot_cap
+still lights uniform bright fills.
+
 Simulated text -> real terminal text: every ImageDraw.text call during frame
 rendering is intercepted (see install_text_capture); mid-size informational
 text is darkened in the source frame and re-rendered by the player as native
@@ -153,9 +160,12 @@ class TermScreen:
 
     def __init__(self, cols: int = 160, rows: int = 46, left_cols: int = 0,
                  chat_rows: int = 10, mode: str = "braille",
-                 dot_offset: float = 16.0, dot_cap: float = 170.0):
+                 dot_offset: float = 16.0, dot_cap: float = 170.0,
+                 gamma: float = 1.0):
         # adaptive threshold: a dot lights when clearly brighter than its cell
         # mean; dot_cap keeps uniform bright areas lit (absolute fallback).
+        # gamma is an optional tone map on the max-map luminance (kept for
+        # experimentation; default 1.0 = off).
         self.cols = max(40, cols)
         self.rows = max(12, rows)
         self.left_cols = 0                         # no side pane anymore
@@ -168,6 +178,7 @@ class TermScreen:
         self.strip_chrome = True
         self.dot_offset = float(dot_offset)
         self.dot_cap = float(dot_cap)
+        self.gamma = float(gamma)
         self._prev = None
 
         if self.mode == "braille":
@@ -216,6 +227,21 @@ class TermScreen:
         canvas.paste(small, (self.pic_x, self.pic_y))
         return np.asarray(canvas, dtype=np.uint8)      # (h_px, w_px, 3)
 
+    def _downscaled_max(self, img: Image.Image, w_px: int, h_px: int) -> np.ndarray:
+        """Max-pooled luminance map: BOX to 2x then 2x2 max.
+
+        The mean downscale (LANCZOS) smears sparse bright dots (globe dot-clouds,
+        particles) into their dark surroundings and they vanish from the braille
+        pass. Keeping the brightest pixel per cell preserves those dots while
+        uniform areas stay identical to the mean map.
+        """
+        mid = img.convert("RGB").resize((self.pic_w * 2, self.pic_h * 2), Image.BOX)
+        a = np.asarray(mid, dtype=np.float32)
+        a = a.reshape(self.pic_h, 2, self.pic_w, 2, 3).max(axis=(1, 3))
+        canvas = np.full((h_px, w_px, 3), BG, dtype=np.float32)
+        canvas[self.pic_y:self.pic_y + self.pic_h, self.pic_x:self.pic_x + self.pic_w] = a
+        return canvas
+
     def _picture_half(self, img: Image.Image):
         """Half-block mode: return (top, bot) pixel arrays, (rows, cols, 3) each."""
         arr = self._downscaled(img, self.pic_w_px, self.pic_h_px)
@@ -227,13 +253,22 @@ class TermScreen:
         mask bit i is set when the i-th dot is lit; fg is the mean color of the
         lit dots, bg the mean of the unlit dots (per cell, TrueColor).
         """
-        arr = self._downscaled(img, self.pic_w_px, self.pic_h_px)
-        luma = arr @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+        arr = self._downscaled(img, self.pic_w_px, self.pic_h_px)     # mean map (colours)
+        arr_h = self._downscaled_max(img, self.pic_w_px, self.pic_h_px)  # max map (dots)
+        luma = arr_h @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+        if self.gamma != 1.0:
+            luma = 255.0 * np.power(luma / 255.0, self.gamma)
         cells = arr.reshape(self.pane_rows, 4, self.pic_cols, 2, 3)
         lum = luma.reshape(self.pane_rows, 4, self.pic_cols, 2)
-        mean = lum.mean(axis=(1, 3), keepdims=True)             # per-cell mean
-        thr = np.minimum(mean + self.dot_offset, self.dot_cap)   # local contrast + abs fallback
-        on = lum >= thr
+        # Per-cell contrast stretch: the globe's dot-cloud and particle fields
+        # are drawn far too dark to clear any absolute bar after downscaling
+        # (peak ~10 vs BG 6). Normalising each cell to its own min/max range
+        # makes the relative bright dot light up while uniform areas stay off;
+        # dot_cap still lights uniform bright fills.
+        mn = lum.min(axis=(1, 3), keepdims=True)
+        mx = lum.max(axis=(1, 3), keepdims=True)
+        norm = (lum - mn) / (mx - mn + 1.0)
+        on = (norm >= 0.7) | (lum >= self.dot_cap)
 
         mask = (on * BRAILLE_BITS[None, :, None, :]).sum(axis=(1, 3)).astype(np.uint16)   # (rows, cols)
 
@@ -241,6 +276,11 @@ class TermScreen:
         lit = (f32 * on[..., None]).sum(axis=(1, 3))
         n_lit = on.sum(axis=(1, 3))[..., None].clip(min=1)
         fg = np.rint(lit / n_lit).astype(np.uint8)          # mean of lit dots
+        # Lift the foreground: lit dots (e.g. the globe's dark-brown points) are
+        # often as dark as the background after mean-colouring, so they vanish
+        # visually even when the mask says lit. A soft gamma keeps hue, lifts
+        # dark fills into visibility and barely touches bright curves.
+        fg = np.rint(255.0 * np.power(fg.astype(np.float32) / 255.0, 0.6)).astype(np.uint8)
 
         off = (f32 * (~on[..., None])).sum(axis=(1, 3))
         n_off = (~on).sum(axis=(1, 3))[..., None].clip(min=1)
