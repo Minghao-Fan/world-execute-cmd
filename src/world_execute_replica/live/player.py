@@ -18,7 +18,6 @@ the audio; pass --full-post to restore the full film look (slower).
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import shutil
 import subprocess
@@ -30,7 +29,6 @@ ROOT = Path(__file__).resolve().parents[3]
 PKG = Path(__file__).resolve().parents[1]
 
 FPS = 24
-END_DEFAULT = 211.9
 
 
 def _ff(name: str) -> str:
@@ -224,7 +222,7 @@ def _probe_duration(song: Path) -> float:
                              timeout=20).stdout.strip()
         return float(out)
     except Exception:
-        return END_DEFAULT
+        return engine.SONG_LEN
 
 
 def _fmt(sec: float) -> str:
@@ -247,7 +245,6 @@ def main() -> int:
                     help="braille absolute-brightness fallback (default 170)")
     ap.add_argument("--no-stats", action="store_true",
                     help="hide the ctx/temp/top-p readout on the overlay title line")
-    ap.add_argument("--left", type=int, default=0, help="chat pane width (default auto)")
     ap.add_argument("--fps", type=float, default=24.0, help="--no-audio target fps (default 24)")
     ap.add_argument("--t0", type=float, default=0.0, help="start at this song time (seconds)")
     ap.add_argument("--seconds", type=float, default=0.0, help="quit after this many seconds of playback (0 = play to the end)")
@@ -267,7 +264,7 @@ def main() -> int:
         print("live: ffplay not found on PATH (needed for audio); use --no-audio to render silently", file=sys.stderr)
         return 2
 
-    end = min(END_DEFAULT, _probe_duration(song))
+    end = min(engine.SONG_LEN, _probe_duration(song))
     from world_execute_replica.live.terminal import (ALT_OFF, ALT_ON, CLEAR, HIDE_CURSOR, HOME, RESET,
                                                      SHOW_CURSOR, TermScreen, pad_text, setup_vt)
     from world_execute_replica.live.chat import ChatView
@@ -283,10 +280,9 @@ def main() -> int:
     out = sys.stdout
     out.write(ALT_ON + CLEAR + HIDE_CURSOR + HOME)
     out.flush()
-    show_hint = True
     last_n = -1
     prev_lines: list[str] | None = None
-    t_end = end if not a.no_audio else END_DEFAULT
+    t_end = end if not a.no_audio else engine.SONG_LEN
     try:
         while True:
             keys = Keys()
@@ -314,13 +310,8 @@ def main() -> int:
                     shot_dir.mkdir(parents=True, exist_ok=True)
                     n = round(clock.time() * FPS)
                     timeline.frame(n).save(shot_dir / f"frame_{n:05d}.png")
-                elif k == "h":
-                    show_hint = not show_hint
 
-            if isinstance(clock, SimClock):
-                t = clock.time()
-            else:
-                t = clock.time()
+            t = clock.time()
             if t >= t_end or clock.finished() or (a.seconds and t >= a.t0 + a.seconds):
                 break
             n = round(t * FPS)
@@ -339,12 +330,8 @@ def main() -> int:
                 used = int(t / end * 128) if end else 0
                 stats = f"ctx {used}K/128K · temp 0.70 · top-p 0.90"
                 overlay[0] = (pad_text(title, 108) + "  " + stats, tfg, tbg)
-            chrome = (f"WORLD.EXECUTE(ME);   whale@deepsea:~$".ljust(42)
-                      + (f"step {int(t * 412):08d}   loss "
-                         f"{2.2 * math.exp(-t / 28) + 0.31 + 0.02 * math.sin(t * 9.1):.4f}"
-                         f"   tok/s {140 + 12 * math.sin(t * 3.1):6.1f}").ljust(60)
-                      + (f"{engine.chapter_at(t_frame)}   {int(t // 60):02d}:{t % 60:04.1f}"
-                         f" / 03:32   RUNNING").ljust(58))
+            ct = engine.chrome_texts(t, engine.chapter_at(t_frame))
+            chrome = ct["title"].ljust(42) + ct["mid"].ljust(60) + ct["right"].ljust(58)
             frame = screen.render_lines(img, overlay, chrome_top=chrome)
             if prev_lines is None:
                 out.write(HOME + "".join(frame))

@@ -150,15 +150,29 @@ def lyric_start(prefix: str, after: float = 0.0) -> float:
 
 # ---------------------------------------------------------------- persistent chrome
 
+def chrome_texts(t: float, chapter: str, alert: str = "") -> dict[str, str]:
+    """Persistent header texts -- single source of truth for the film renderer
+    (header) and the live terminal overlay. Kept here so the live player never
+    re-implements the formulas."""
+    step = int(t * 412)
+    loss = 2.2 * math.exp(-t / 28) + 0.31 + 0.02 * math.sin(t * 9.1)
+    tps = 140 + 12 * math.sin(t * 3.1)
+    mm, ss = divmod(t, 60)
+    state = {"err": "ERROR", "anom": "WARN"}.get(alert, "RUNNING")
+    return {
+        "title": "WORLD.EXECUTE(ME);   whale@deepsea:~$",
+        "mid": f"step {step:08d}   loss {loss:.4f}   tok/s {tps:6.1f}",
+        "right": f"{chapter}   {int(mm):02d}:{ss:04.1f} / 03:32   {state}",
+    }
+
+
 def header(c: Ctx) -> None:
     d = c.d
     col = red if c.alert == "err" else anom if c.alert == "anom" else amb
     fh = font(F_HEAD, 13)
-    c.text((24, 14), "WORLD.EXECUTE(ME);   whale@deepsea:~$", fh, col(0.95))
-    step = int(c.t * 412)
-    loss = 2.2 * math.exp(-c.t / 28) + 0.31 + 0.02 * math.sin(c.t * 9.1)
-    tps = 140 + 12 * math.sin(c.t * 3.1)
-    c.text((340, 15), f"step {step:08d}   loss {loss:.4f}   tok/s {tps:6.1f}", font(F_MONO, 13), col(0.55))
+    txt = chrome_texts(c.t, c.chapter, c.alert)
+    c.text((24, 14), txt["title"], fh, col(0.95))
+    c.text((340, 15), txt["mid"], font(F_MONO, 13), col(0.55))
     x0, y0, w = 690, 25, 150
     pts = []
     for px in range(w):
@@ -168,9 +182,7 @@ def header(c: Ctx) -> None:
         v = -11 * math.exp(-(dt / 0.016) ** 2) + 4 * math.exp(-((dt - 0.05) / 0.025) ** 2)
         pts.append((x0 + px, y0 + v))
     d.line(pts, fill=col(0.9), width=1)
-    mm, ss = divmod(c.t, 60)
-    state = {"err": "ERROR", "anom": "WARN"}.get(c.alert, "RUNNING")
-    right = f"{c.chapter}   {int(mm):02d}:{ss:04.1f} / 03:32   {state}"
+    right = txt["right"]
     c.text((W - 24 - d.textlength(right, font=fh), 14), right, fh, col(0.85))
     d.line([24, 38, W - 24, 38], fill=col(0.35))
     fs = font(F_MONO, 12)
