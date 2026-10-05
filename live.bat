@@ -15,6 +15,7 @@ rem
 rem  usage: live.bat [--song input\song.mp3] [--cols 160] [--rows 46] [--t0 0]
 rem         live.bat --chat-rows 6    (chat overlay rows at the bottom, default 10)
 rem         live.bat --render half    (picture renderer: braille 2x4 dots [default] / half blocks)
+rem         live.bat --dot-offset 24    (braille adaptive dot offset, default 16, higher = thinner)
 rem         live.bat --no-audio --full-post --t0 118
 rem  keys:  q quit | space pause | left/right -/+5s | [ ] -/+1s | p screenshot | h hint
 rem ===========================================================================

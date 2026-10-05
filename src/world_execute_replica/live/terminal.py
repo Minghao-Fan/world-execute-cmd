@@ -106,7 +106,10 @@ class TermScreen:
     """Full-window picture + a bottom chat overlay (no panes, no status bar)."""
 
     def __init__(self, cols: int = 160, rows: int = 46, left_cols: int = 0,
-                 chat_rows: int = 10, mode: str = "braille"):
+                 chat_rows: int = 10, mode: str = "braille",
+                 dot_offset: float = 16.0, dot_cap: float = 170.0):
+        # adaptive threshold: a dot lights when clearly brighter than its cell
+        # mean; dot_cap keeps uniform bright areas lit (absolute fallback).
         self.cols = max(40, cols)
         self.rows = max(12, rows)
         self.left_cols = 0                         # no side pane anymore
@@ -116,6 +119,8 @@ class TermScreen:
         self.sep_col = 0
         self.pic_cols = self.cols
         self.mode = mode if mode in ("braille", "half") else "braille"
+        self.dot_offset = float(dot_offset)
+        self.dot_cap = float(dot_cap)
         self._prev = None
 
         if self.mode == "braille":
@@ -161,7 +166,9 @@ class TermScreen:
         luma = arr @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
         cells = arr.reshape(self.pane_rows, 4, self.pic_cols, 2, 3)
         lum = luma.reshape(self.pane_rows, 4, self.pic_cols, 2)
-        on = lum >= 48.0                                    # brightness threshold
+        mean = lum.mean(axis=(1, 3), keepdims=True)             # per-cell mean
+        thr = np.minimum(mean + self.dot_offset, self.dot_cap)   # local contrast + abs fallback
+        on = lum >= thr
 
         mask = (on * BRAILLE_BITS[None, :, None, :]).sum(axis=(1, 3)).astype(np.uint16)   # (rows, cols)
 

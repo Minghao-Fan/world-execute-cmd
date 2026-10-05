@@ -240,6 +240,10 @@ def main() -> int:
                     help="chat overlay rows at the bottom (default 10)")
     ap.add_argument("--render", choices=("braille", "half"), default="braille",
                     help="picture renderer: braille 2x4 dots (default) or half blocks")
+    ap.add_argument("--dot-offset", type=float, default=16.0,
+                    help="braille adaptive dot offset (default 16; higher = thinner)")
+    ap.add_argument("--dot-cap", type=float, default=170.0,
+                    help="braille absolute-brightness fallback (default 170)")
     ap.add_argument("--no-stats", action="store_true",
                     help="hide the ctx/temp/top-p readout on the overlay title line")
     ap.add_argument("--left", type=int, default=0, help="chat pane width (default auto)")
@@ -269,7 +273,8 @@ def main() -> int:
 
     setup_vt()
     chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
-    screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render)
+    screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render,
+                        dot_offset=a.dot_offset, dot_cap=a.dot_cap)
     chat = ChatView(40)
     clock = AudioClock(song, a.t0) if not a.no_audio else SimClock(a.fps, a.t0)
 
