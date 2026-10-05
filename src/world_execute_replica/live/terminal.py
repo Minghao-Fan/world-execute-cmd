@@ -108,7 +108,7 @@ def pad_text(s: str, width: int, fill: str = " ") -> str:
 # and recorded; the player overlays it as real terminal text. Tiny captions and
 # huge effect titles stay pixel-rendered on purpose.
 
-_TEXTS: list[tuple[int, int, str, int, tuple]] = []
+_TEXTS: list[tuple[int, int, int, int, str, int, tuple]] = []  # x, y, w, h, s, size, fg
 _ORIG_TEXT = ImageDraw.ImageDraw.text
 
 
@@ -120,6 +120,12 @@ def install_text_capture() -> None:
 def _capture_text(self, xy, text, font=None, fill=None, *a, **k):
     size = getattr(font, "size", 0)
     if not (size and text):
+        return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
+    # Grayscale canvases ("L") are internal glyph/bitmap builders (banner_bits,
+    # dot charts, ...) that paint text on tiny throwaway images and read the
+    # pixels back. Capturing them would blank the glyphs (and their coordinates
+    # collide with the chrome boxes), so always let them draw untouched.
+    if getattr(getattr(self, "_image", None), "mode", "") == "L":
         return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
     x0, y0 = int(xy[0]), int(xy[1])
     # persistent header boxes are handled by chrome_top (and _strip_chrome);
@@ -133,11 +139,12 @@ def _capture_text(self, xy, text, font=None, fill=None, *a, **k):
             w, h = bb[2] - bb[0], bb[3] - bb[1]
         except Exception:
             w, h = int(size * 0.6) * len(text), int(size * 1.2)
-        if w > 0 and h > 0:
-            self.rectangle([x0, y0, x0 + w, y0 + h], fill=(6, 5, 3))
         fill_c = tuple(fill) if isinstance(fill, (tuple, list)) and len(fill) == 3 else (255, 176, 0)
-        _TEXTS.append((x0, y0, str(text), size, fill_c))
-        return None
+        _TEXTS.append((x0, y0, max(1, w), max(1, h), str(text), size, fill_c))
+        # Draw the original text: some shots read pixels back from their canvas
+        # (e.g. the countdown '3' cells). Darkening happens later in
+        # _strip_texts, right before the braille pass, so the dots stay clean.
+        return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
     return _ORIG_TEXT(self, xy, text, font=font, fill=fill, *a, **k)
 
 
@@ -191,6 +198,14 @@ class TermScreen:
             d.rectangle([x0, y0, x1, y1], fill=(6, 5, 3))
         return img
 
+    def _strip_texts(self, img: Image.Image,
+                     texts: list[tuple[int, int, int, int, str, int, tuple]]) -> Image.Image:
+        """Darken every captured text box so it cannot smear into the dots."""
+        d = ImageDraw.Draw(img)
+        for (x, y, w, h, s, size, fg) in texts:
+            d.rectangle([x, y, x + w, y + h], fill=(6, 5, 3))
+        return img
+
     def _downscaled(self, img: Image.Image, w_px: int, h_px: int) -> np.ndarray:
         """LANCZOS downscale + light unsharp -> letterboxed RGB ndarray."""
         if self.strip_chrome:
@@ -237,13 +252,15 @@ class TermScreen:
     def render_lines(self, img: Image.Image,
                      chat_lines: list[tuple[str, tuple, tuple]],
                      chrome_top: str = "",
-                     texts: list[tuple[int, int, str, int, tuple]] | None = None) -> list[str]:
+                     texts: list[tuple[int, int, int, int, str, int, tuple]] | None = None) -> list[str]:
         """Return the frame as a fixed-length list of ANSI lines (rows total;
         the last line ends with \\r so the console never scrolls).
 
         Pipeline: dot picture -> char grid -> overlay chrome/texts/chat on the
         grid -> per-line run-length ANSI. The player diffs consecutive frames.
         """
+        if texts:
+            img = self._strip_texts(img, texts)
         if self.mode == "braille":
             fg, bg, mask = self._picture_braille(img)
             grid = [[(chr(0x2800 + int(mask[r, c])), tuple(fg[r, c]), tuple(bg[r, c]))
@@ -272,9 +289,9 @@ class TermScreen:
                  + ("\r\n" if r < self.rows - 1 else "\r") for r in range(self.rows)]
         return lines
 
-    def _overlay_texts(self, grid: list, texts: list[tuple[int, int, str, int, tuple]]) -> None:
+    def _overlay_texts(self, grid: list, texts: list[tuple[int, int, int, int, str, int, tuple]]) -> None:
         """Blit captured source texts onto the grid as native terminal text."""
-        for (x, y, s, size, fg_c) in texts:
+        for (x, y, w, h, s, size, fg_c) in texts:
             col = x * self.cols // FULL_W
             row = y * self.rows // FULL_H
             rows_take = max(1, min(3, (int(size * 1.1 * self.rows * 4 / FULL_H) + 3) // 4))
