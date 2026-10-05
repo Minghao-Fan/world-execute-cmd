@@ -230,10 +230,22 @@ def _fmt(sec: float) -> str:
     return f"{int(mm):02d}:{ss:04.1f}"
 
 
+def _maximize_console() -> None:
+    """Maximize the console window so the auto-fit renderer uses the largest
+    possible grid; a no-op when there is no console (e.g. redirected runs)."""
+    try:
+        import ctypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 3)   # SW_MAXIMIZE
+    except Exception:
+        pass
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--song", default=str(ROOT / "input" / "song.mp3"), help="audio file to play (any format ffmpeg reads)")
-    ap.add_argument("--cols", type=int, default=160, help="terminal columns (default 160)")
+    ap.add_argument("--cols", type=int, default=None, help="terminal columns (default: auto-fit window width)")
     ap.add_argument("--rows", type=int, default=46, help="terminal rows (default 46)")
     ap.add_argument("--chat-rows", type=int, default=10,
                     help="chat overlay rows at the bottom (default 10)")
@@ -270,7 +282,15 @@ def main() -> int:
                                                      pad_text, setup_vt)
     from world_execute_replica.live.chat import ChatView
 
+    _maximize_console()
     setup_vt()
+    if a.cols is None:
+        # auto-fit the terminal: the ops ticker keeps its right margin 3 columns
+        # from the window edge only when the render width equals the window width.
+        try:
+            a.cols = max(40, os.get_terminal_size().columns - 1)
+        except Exception:
+            a.cols = 160
     chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
     screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render,
                         dot_offset=a.dot_offset, dot_cap=a.dot_cap)

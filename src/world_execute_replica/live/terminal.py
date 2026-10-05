@@ -42,6 +42,8 @@ BLUE = (77, 107, 254)
 ME_TEXT = (126, 152, 255)
 GREY = (120, 110, 80)
 DIM = (70, 62, 40)
+# solid frame colour for the ops ticker border (amber, clearly visible)
+FRAME = (170, 145, 80)
 
 RESET = "\x1b[0m"
 HOME = "\x1b[H"
@@ -313,6 +315,8 @@ class TermScreen:
         if texts:
             self._overlay_texts(grid, texts)
 
+        self._draw_ops_frame(grid)
+
         start = self.rows - self.chat_rows
         for r in range(start, self.rows):
             idx = r - start
@@ -326,6 +330,30 @@ class TermScreen:
                  + ("\r\n" if r < self.rows - 1 else "\r") for r in range(self.rows)]
         return lines
 
+    def _draw_ops_frame(self, grid: list) -> None:
+        """Solid frame around the right ops ticker: its right edge mirrors the
+        left pane border (source x=24 -> 3 cols from the edge). Drawn after the
+        text overlay so the border always wins; the bottom stops above the chat
+        overlay so the line is never swallowed by the chat background."""
+        if self.cols < 120:
+            return
+        ol = self.cols * OPS_LEFT_X // FULL_W
+        or_ = self.cols * OPS_RIGHT_X // FULL_W
+        rt = 3                       # source y=56
+        rb = min(self.rows - self.chat_rows - 1, self.rows - 2)
+        if rb < rt:
+            return
+        for rr in range(rt, rb + 1):
+            grid[rr][ol] = ("┃", FRAME, BG)
+            grid[rr][or_] = ("┃", FRAME, BG)
+        for cc in range(ol, or_ + 1):
+            grid[rt][cc] = ("━", FRAME, BG)
+            grid[rb][cc] = ("━", FRAME, BG)
+        grid[rt][ol] = ("┏", FRAME, BG)
+        grid[rt][or_] = ("┓", FRAME, BG)
+        grid[rb][ol] = ("┗", FRAME, BG)
+        grid[rb][or_] = ("┛", FRAME, BG)
+
     def _overlay_texts(self, grid: list, texts: list[tuple[int, int, int, int, str, int, tuple]]) -> None:
         """Blit captured source texts onto the grid as native terminal text."""
         ops_right_col = self.cols * OPS_RIGHT_X // FULL_W   # ticker frame right edge
@@ -336,7 +364,7 @@ class TermScreen:
                 # on the left (source x=24 -> col 3). Short ops labels then line
                 # up flush against the right margin instead of dangling.
                 n = sum(wcwidth(ch) for ch in s)
-                col = ops_right_col - n
+                col = ops_right_col - 1 - n   # keep 1 column clear for the frame
                 if col < 0:
                     col = 0
             else:

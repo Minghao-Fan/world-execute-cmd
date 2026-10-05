@@ -105,13 +105,13 @@ class ChatView:
         out: list[tuple[str, tuple, tuple]] = [
             (self.title, UI, BG),
             (self.subtitle, DIM, BG),
-            ("═" * self.divider, DIM, BG),
+            ("━" * self.divider, DIM, BG),
         ]
         shown = [m for m in EVENTS if m.t <= t]
         for m in shown[-self.max_msgs:]:
             text = self._text_at(m, t)
             out.append((f"[{PREFIX[m.kind]}] {text}", COLOR[m.kind], BG))
-        out.append(("═" * self.divider, DIM, BG))
+        out.append(("━" * self.divider, DIM, BG))
         out.append(self._composer(t))
         return out
 
