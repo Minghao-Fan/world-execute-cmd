@@ -26,7 +26,7 @@ import unicodedata
 from dataclasses import dataclass
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 # palette from tuikit (amber), reused for the terminal chrome so the window
 # looks like the film's system colour
@@ -110,7 +110,9 @@ class TermScreen:
 
     def _picture(self, img: Image.Image) -> np.ndarray:
         """Return (pane_rows, pic_cols) array of cell indices into fg/bg pixel pairs."""
-        small = img.convert("RGB").resize((self.pic_w, self.pic_h), Image.BILINEAR)
+        # LANCZOS downscale (11x) + light unsharp: keeps edges instead of the mushy BILINEAR look
+        small = img.convert("RGB").resize((self.pic_w, self.pic_h), Image.LANCZOS)
+        small = small.filter(ImageFilter.UnsharpMask(radius=2, percent=90, threshold=2))
         canvas = Image.new("RGB", (self.pic_cols, self.pane_rows * 2), BG)
         canvas.paste(small, (self.pic_x, self.pic_y))
         arr = np.asarray(canvas, dtype=np.uint8)            # (H, W, 3)

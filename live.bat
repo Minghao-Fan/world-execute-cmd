@@ -98,6 +98,10 @@ if not exist "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" (
     "%PY%" "%~dp0src\world_execute_replica\dancer\placeholder.py" || goto :fail
 )
 
+echo.
+echo [4/4] playing - for a sharper picture: maximize the window / shrink the font ^(Ctrl+wheel^),
+echo        or run:  live.bat --cols 220 --rows 50   ^(more columns = more pixels^).
+echo.
 set "PYTHONPATH=%SRC%"
 "%PY%" -m world_execute_replica.live %*
 exit /b %errorlevel%
