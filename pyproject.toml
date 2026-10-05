@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "world-execute-cmd"
+version = "0.2.0"
+description = "Live terminal player for a code-rendered fan PV of Mili's world.execute(me);"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=10",
+    "numpy>=1.26",
+]
+
+[project.scripts]
+world-execute = "world_execute_replica.live.player:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"world_execute_replica.assets" = ["fonts/*.ttf", "mascot/**/*", "audio/.gitkeep"]
+"world_execute_replica.dsh" = ["assets/**/*", "vendor/**/*"]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
