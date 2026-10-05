@@ -238,6 +238,10 @@ def main() -> int:
     ap.add_argument("--rows", type=int, default=46, help="terminal rows (default 46)")
     ap.add_argument("--chat-rows", type=int, default=10,
                     help="chat overlay rows at the bottom (default 10)")
+    ap.add_argument("--render", choices=("braille", "half"), default="braille",
+                    help="picture renderer: braille 2x4 dots (default) or half blocks")
+    ap.add_argument("--no-stats", action="store_true",
+                    help="hide the ctx/temp/top-p readout on the overlay title line")
     ap.add_argument("--left", type=int, default=0, help="chat pane width (default auto)")
     ap.add_argument("--fps", type=float, default=24.0, help="--no-audio target fps (default 24)")
     ap.add_argument("--t0", type=float, default=0.0, help="start at this song time (seconds)")
@@ -260,12 +264,12 @@ def main() -> int:
 
     end = min(END_DEFAULT, _probe_duration(song))
     from world_execute_replica.live.terminal import (ALT_OFF, ALT_ON, CLEAR, HIDE_CURSOR, HOME, RESET,
-                                                     SHOW_CURSOR, TermScreen, setup_vt)
+                                                     SHOW_CURSOR, TermScreen, pad_text, setup_vt)
     from world_execute_replica.live.chat import ChatView
 
     setup_vt()
     chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
-    screen = TermScreen(a.cols, a.rows, 0, chat_rows)
+    screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render)
     chat = ChatView(40)
     clock = AudioClock(song, a.t0) if not a.no_audio else SimClock(a.fps, a.t0)
 
@@ -275,6 +279,7 @@ def main() -> int:
     out.flush()
     show_hint = True
     last_n = -1
+    prev_lines: list[str] | None = None
     t_end = end if not a.no_audio else END_DEFAULT
     try:
         while True:
@@ -323,8 +328,18 @@ def main() -> int:
 
             lines = chat.lines(t)
             overlay = lines[:3] + lines[3:][-(chat_rows - 3):] if len(lines) > 3 else lines
-            buf = screen.render(img, overlay)
-            out.write(buf)
+            if overlay and not a.no_stats:
+                title, tfg, tbg = overlay[0]
+                used = int(t / end * 128) if end else 0
+                stats = f"ctx {used}K/128K · temp 0.70 · top-p 0.90"
+                overlay[0] = (pad_text(title, 108) + "  " + stats, tfg, tbg)
+            frame = screen.render_lines(img, overlay)
+            if prev_lines is None:
+                out.write(HOME + "".join(frame))
+            else:
+                out.write("".join(f"\x1b[{i + 1}H{l}"
+                                  for i, l in enumerate(frame) if l != prev_lines[i]))
+            prev_lines = frame
             out.flush()
             if isinstance(clock, SimClock):
                 clock.advance(time.monotonic() - t0_)

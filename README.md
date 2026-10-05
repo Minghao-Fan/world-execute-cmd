@@ -30,6 +30,7 @@ live.bat                                :: 播放 input/song.mp3
 live.bat --song path\to\any.mp3         :: 换一首歌
 live.bat --cols 200 --rows 56           :: 加大网格（窗口需够大，画面更清晰）
 live.bat --chat-rows 6                  :: 底部聊天浮层行数（默认 10）
+live.bat --render half                  :: 半块字符渲染（默认 braille 2×4 点阵，更细腻）
 ```
 
 按键：q 退出 · space 暂停 · ←/→ 跳 ±5 s · [ / ] 跳 ±1 s · p 存当前帧到 `output/live/` · h 键位提示。
