@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from world_execute_replica.live.terminal import (
-    BG, BG_DSH, BG_ERR, BG_META, BG_SYS, BG_YOU, DIM, GREY, ME_TEXT, RED, UI)
+    BG, DIM, GREY, ME_TEXT, RED, UI)
 
 # semantic colours shared with the picture pane
 SYSTEM = GREY
@@ -82,7 +82,6 @@ EVENTS: list[Msg] = [
 
 PREFIX = {"user": "you", "dsh": "dsh", "sys": "sys", "err": "!!", "meta": ".."}
 COLOR = {"user": YOU, "dsh": HER, "sys": SYSTEM, "err": ERROR, "meta": DIM}
-BGKIND = {"user": BG_YOU, "dsh": BG_DSH, "sys": BG_SYS, "err": BG_ERR, "meta": BG_META}
 
 # when "you" are typing into the composer (the film's KEYS, 12.47 -> 14.95)
 TYPE_T0, TYPE_T1 = 12.47, 14.95
@@ -92,24 +91,27 @@ TYPED = [(12.47, "你"), (13.05, "你好")]
 class ChatView:
     """Turns the event stream into the left pane's text lines at song time t."""
 
-    def __init__(self, width: int = 42, max_msgs: int = 40):
+    def __init__(self, width: int = 42, max_msgs: int = 40, divider_cols: int | None = None):
         self.width = width
         self.max_msgs = max_msgs
+        # the divider runs the full window width (not just the chat pane) so the
+        # chat overlay is clearly separated from the picture above it.
+        self.divider = divider_cols if divider_cols else width
         self.title = "dsh · DeepSeek"
         self.subtitle = "session 4471 · ctx 128K"
 
     def lines(self, t: float) -> list[tuple[str, tuple, tuple]]:
-        """Return overlay lines as (text, fg, bg) triples; bg tints by role."""
+        """Return overlay lines as (text, fg, bg) triples; black bg for all rows."""
         out: list[tuple[str, tuple, tuple]] = [
             (self.title, UI, BG),
             (self.subtitle, DIM, BG),
-            ("─" * self.width, DIM, BG),
+            ("═" * self.divider, DIM, BG),
         ]
         shown = [m for m in EVENTS if m.t <= t]
         for m in shown[-self.max_msgs:]:
             text = self._text_at(m, t)
-            out.append((f"[{PREFIX[m.kind]}] {text}", COLOR[m.kind], BGKIND[m.kind]))
-        out.append(("─" * self.width, DIM, BG))
+            out.append((f"[{PREFIX[m.kind]}] {text}", COLOR[m.kind], BG))
+        out.append(("═" * self.divider, DIM, BG))
         out.append(self._composer(t))
         return out
 
@@ -129,7 +131,7 @@ class ChatView:
                 typed = s
         if TYPE_T0 <= t < TYPE_T1:
             cursor = "▌" if int(t * 2) % 2 == 0 else " "
-            return f"> {typed}{cursor}", YOU, BG_YOU
+            return f"> {typed}{cursor}", YOU, BG
         if t < TYPE_T0:
-            return "> ", DIM, BG_YOU
-        return f"> {typed}", DIM, BG_YOU
+            return "> ", DIM, BG
+        return f"> {typed}", DIM, BG

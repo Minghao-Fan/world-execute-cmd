@@ -43,14 +43,6 @@ ME_TEXT = (126, 152, 255)
 GREY = (120, 110, 80)
 DIM = (70, 62, 40)
 
-# chat role backgrounds (subtle dark tints so the overlay still reads as part
-# of the picture)
-BG_SYS = (14, 18, 44)
-BG_YOU = (8, 32, 17)
-BG_DSH = (34, 24, 9)
-BG_ERR = (44, 13, 11)
-BG_META = (22, 19, 12)
-
 RESET = "\x1b[0m"
 HOME = "\x1b[H"
 CLEAR = "\x1b[2J"
@@ -61,6 +53,11 @@ ALT_ON = "\x1b[?1049h"
 ALT_OFF = "\x1b[?1049l"
 
 FULL_W, FULL_H = 1280, 720
+
+# source px of the right ops ticker frame (core.py TICK); text captured inside
+# this band is right-aligned to the frame right edge so the column hugs the
+# window border at the same distance the left pane border keeps from the left.
+OPS_LEFT_X, OPS_RIGHT_X = 1150, 1256
 
 # persistent terminal chrome in the source frame (tui/engine/core.py header):
 # title / step-loss-tps / right status. Darkened so the braille picture shows a
@@ -331,8 +328,19 @@ class TermScreen:
 
     def _overlay_texts(self, grid: list, texts: list[tuple[int, int, int, int, str, int, tuple]]) -> None:
         """Blit captured source texts onto the grid as native terminal text."""
+        ops_right_col = self.cols * OPS_RIGHT_X // FULL_W   # ticker frame right edge
         for (x, y, w, h, s, size, fg_c) in texts:
-            col = x * self.cols // FULL_W
+            if x >= OPS_LEFT_X and y >= 56 and y < 610:
+                # right ops ticker zone: right-align so its right edge hugs the
+                # window edge at the same distance as the left pane border does
+                # on the left (source x=24 -> col 3). Short ops labels then line
+                # up flush against the right margin instead of dangling.
+                n = sum(wcwidth(ch) for ch in s)
+                col = ops_right_col - n
+                if col < 0:
+                    col = 0
+            else:
+                col = x * self.cols // FULL_W
             row = y * self.rows // FULL_H
             rows_take = max(1, min(3, (int(size * 1.1 * self.rows * 4 / FULL_H) + 3) // 4))
             if not (0 <= row < self.pane_rows and 0 <= col < self.cols):

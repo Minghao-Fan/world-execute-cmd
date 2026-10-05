@@ -274,7 +274,7 @@ def main() -> int:
     chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
     screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render,
                         dot_offset=a.dot_offset, dot_cap=a.dot_cap)
-    chat = ChatView(40)
+    chat = ChatView(40, divider_cols=a.cols)
     install_text_capture()
     clock = AudioClock(song, a.t0) if not a.no_audio else SimClock(a.fps, a.t0)
 
