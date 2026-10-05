@@ -272,12 +272,37 @@ def main() -> int:
 
     setup_vt()
     if a.cols is None:
-        # auto-fit the terminal: the ops ticker keeps its right margin 3 columns
-        # from the window edge only when the render width equals the window width.
+        # Auto-fit the VISIBLE window width, not the screen-buffer width: cmd's
+        # buffer defaults to 120 columns while the visible window can be much
+        # wider, so os.get_terminal_size() under-renders and leaves the right
+        # side blank (the ops ticker then sits far from the window edge).
         try:
-            a.cols = max(40, os.get_terminal_size().columns - 1)
+            import ctypes
+            h = ctypes.windll.kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+
+            class _COORD(ctypes.Structure):
+                _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+            class _RECT(ctypes.Structure):
+                _fields_ = [("Left", ctypes.c_short), ("Top", ctypes.c_short),
+                            ("Right", ctypes.c_short), ("Bottom", ctypes.c_short)]
+
+            class _INFO(ctypes.Structure):
+                _fields_ = [("dwSize", _COORD), ("dwCursorPosition", _COORD),
+                            ("wAttributes", ctypes.c_ushort), ("srWindow", _RECT),
+                            ("dwMaximumWindowSize", _COORD)]
+
+            info = _INFO()
+            if ctypes.windll.kernel32.GetConsoleScreenBufferInfo(h, ctypes.byref(info)):
+                a.cols = max(40, info.srWindow.Right - info.srWindow.Left + 1)
+                # widen the buffer to the render width so long lines never wrap
+                ctypes.windll.kernel32.SetConsoleScreenBufferSize(
+                    h, _COORD(max(a.cols, 120), info.dwSize.Y))
         except Exception:
-            a.cols = 160
+            try:
+                a.cols = max(40, os.get_terminal_size().columns - 1)
+            except Exception:
+                a.cols = 160
     chat_rows = max(4, min(a.chat_rows or 10, a.rows // 2))
     screen = TermScreen(a.cols, a.rows, 0, chat_rows, mode=a.render,
                         dot_offset=a.dot_offset, dot_cap=a.dot_cap)
