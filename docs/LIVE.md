@@ -5,10 +5,12 @@
 ## 快速开始
 
 ```bat
-live.bat                          :: 默认播放 input/song.mp3
-live.bat --song path\to\any.mp3   :: 换一首歌（任意 ffmpeg 可读格式）
-live.bat --no-audio               :: 静默渲染（画面按帧率走）
-live.bat --full-post              :: 保留 bloom/扫描线后期（更接近成片，较慢）
+run.bat                          :: 默认播放 input/song.mp3
+run.bat --song path\to\any.mp3   :: 换一首歌（任意 ffmpeg 可读格式）
+run.bat --no-audio               :: 静默渲染（画面按帧率走）
+run.bat --full-post              :: 保留 bloom/扫描线后期（更接近成片，较慢）
+run.bat --clean                   :: 先清除可再生缓存（wav/特征/舞者），再重建并播放
+cleaner.bat                       :: 按需清除大型过程文件（音频/舞者/__pycache__/预览图/预渲染）
 ```
 
 也可直接：
@@ -78,5 +80,5 @@ python -m world_execute_replica.live --t0 118   :: 从 REWARD_HACK 段开始
 | `src/world_execute_replica/live/player.py` | 入口 / 装配 / 音频时钟 / 主循环 / 按键 |
 | `src/world_execute_replica/live/terminal.py` | 1280×720 → 半块字符 ANSI truecolor 渲染 |
 | `src/world_execute_replica/live/chat.py` | 左栏聊天时间线（对齐原片叙事） |
-| `live.bat` | 一键：.venv → 运行时产物 → 播放 |
+| `run.bat` | 一键：.venv → 运行时产物 → 播放 |
 | `scripts/live_smoke.py` / `live_bench.py` / `live_term_test.py` | 装配、性能与渲染验证 |

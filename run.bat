@@ -1,6 +1,6 @@
 @echo off
 rem ===========================================================================
-rem  live.bat : one-click live terminal player -- ZERO prerequisites.
+rem  run.bat : one-click live terminal player -- ZERO prerequisites.
 rem
 rem  Double-click on any Windows machine and it plays. If a component is
 rem  missing it is downloaded automatically into .tools\ (relative to this
@@ -12,17 +12,30 @@ rem    3/4 song check  -> needs your own input\song.mp3 (copyrighted, not in rep
 rem    4/4 play        -> first-run also converts the song to 22k mono and
 rem                       generates audio features + stand-in dancer caches
 rem
-rem  usage: live.bat [--song input\song.mp3] [--cols 160] [--rows 46] [--t0 0]
-rem         live.bat --chat-rows 6    (chat overlay rows at the bottom, default 10)
-rem         live.bat --render half    (picture renderer: braille 2x4 dots [default] / half blocks)
-rem         live.bat --dot-offset 24    (braille adaptive dot offset, default 16, higher = thinner)
-rem         live.bat --no-audio --full-post --t0 118
+rem  usage: run.bat [--song input\song.mp3] [--cols 160] [--rows 46] [--t0 0]
+rem         run.bat --clean            delete regenerable caches, then rebuild+play
+rem         run.bat --chat-rows 6    (chat overlay rows at the bottom, default 10)
+rem         run.bat --render half    (picture renderer: braille 2x4 dots [default] / half blocks)
+rem         run.bat --dot-offset 24    (braille adaptive dot offset, default 16, higher = thinner)
+rem         run.bat --no-audio --full-post --t0 118
 rem  keys:  q quit | space pause | left/right -/+5s | [ ] -/+1s | p screenshot | h hint
+rem  large regenerable caches can be wiped on demand with cleaner.bat.
 rem ===========================================================================
-setlocal
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set "SRC=%~dp0src"
 set "PY="
+
+rem  --clean is consumed here (clears regenerable caches); the rest is passed
+rem  straight through to the player.
+set "CLEAN="
+set "EXTRA="
+:argloop
+if "%~1"=="" goto :argdone
+if /i "%~1"=="--clean" (set "CLEAN=1") else (set "EXTRA=!EXTRA! %~1")
+shift
+goto :argloop
+:argdone
 
 rem ============================ [1/4] Python ================================
 if exist "%~dp0.venv\Scripts\python.exe" (
@@ -85,10 +98,18 @@ if not exist "%~dp0input\song.mp3" (
 )
 
 rem ============================ [4/4] assets + play ========================
+rem  --clean: wipe regenerable caches BEFORE the checks so they rebuild.
+if defined CLEAN (
+    echo [3/4] --clean: clearing regenerable caches ...
+    del /q "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" 2>nul
+    del /q "%~dp0src\world_execute_replica\tui\engine\audio_features.json" 2>nul
+    rd /s /q "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" 2>nul
+    rd /s /q "%~dp0src\world_execute_replica\dancer\pv_cache" 2>nul
+)
 echo [3/4] checking runtime assets ...
 if not exist "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" (
     echo       converting song to 22k mono ...
-    "%FF%" -v error -y -i "%~dp0input\song.mp3" -ac 1 -ar 22050 "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" || goto :fail
+    "%FF%" -nostdin -v error -y -i "%~dp0input\song.mp3" -ac 1 -ar 22050 "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" || goto :fail
 )
 if not exist "%~dp0src\world_execute_replica\tui\engine\audio_features.json" (
     echo       generating audio features ...
@@ -104,10 +125,10 @@ if not exist "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" (
 echo.
 echo [4/4] playing - the grid auto-fits your window width; maximize the
 echo        window for the sharpest picture, or set a size with
-echo        live.bat --cols 220 --rows 50.
+echo        run.bat --cols 220 --rows 50.
 echo.
 set "PYTHONPATH=%SRC%"
-"%PY%" -m world_execute_replica.live %*
+"%PY%" -m world_execute_replica.live %EXTRA%
 exit /b %errorlevel%
 
 rem ---------------------------------------------------------------------------

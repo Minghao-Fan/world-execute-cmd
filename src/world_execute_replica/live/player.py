@@ -293,11 +293,14 @@ def main() -> int:
                             ("dwMaximumWindowSize", _COORD)]
 
             info = _INFO()
-            if ctypes.windll.kernel32.GetConsoleScreenBufferInfo(h, ctypes.byref(info)):
-                a.cols = max(40, info.srWindow.Right - info.srWindow.Left + 1)
-                # widen the buffer to the render width so long lines never wrap
-                ctypes.windll.kernel32.SetConsoleScreenBufferSize(
-                    h, _COORD(max(a.cols, 120), info.dwSize.Y))
+            if not ctypes.windll.kernel32.GetConsoleScreenBufferInfo(h, ctypes.byref(info)):
+                # no console (e.g. stdout redirected): fall through to the
+                # os.get_terminal_size / default fallback instead of crashing
+                raise RuntimeError("GetConsoleScreenBufferInfo failed")
+            a.cols = max(40, info.srWindow.Right - info.srWindow.Left + 1)
+            # widen the buffer to the render width so long lines never wrap
+            ctypes.windll.kernel32.SetConsoleScreenBufferSize(
+                h, _COORD(max(a.cols, 120), info.dwSize.Y))
         except Exception:
             try:
                 a.cols = max(40, os.get_terminal_size().columns - 1)

@@ -6,9 +6,9 @@
 - 左边是 DeepSeek Harness（dsh）的聊天窗口，她和"你"的对话；
 - 右边是运行着她的那个世界，也就是模型的可视化。
 
-> **本仓库是什么**：这是原项目 [`world-execute-me-dsh-pv-main`](https://www.bilibili.com/video/BV1xCai6aE9g/)（作者 MisakaZentai）的**复刻重构版**。代码被重新组织为标准的 src-layout Python 包（唯一顶层包 `src/world_execute_replica/`），全部引用改为绝对导入，并配套了 `live.bat` 一键启动脚本。原仓库内容已备份在 [`docs/original/`](docs/original/)，本 README 描述的是重构后的仓库。
+> **本仓库是什么**：这是原项目 [`world-execute-me-dsh-pv-main`](https://www.bilibili.com/video/BV1xCai6aE9g/)（作者 MisakaZentai）的**复刻重构版**。代码被重新组织为标准的 src-layout Python 包（唯一顶层包 `src/world_execute_replica/`），全部引用改为绝对导入，并配套了 `run.bat` 一键启动脚本。原仓库内容已备份在 [`docs/original/`](docs/original/)，本 README 描述的是重构后的仓库。
 
-你自备歌曲，双击 `live.bat` 即可在 cmd 窗口**实时渲染播放**，无需等待视频出片。
+你自备歌曲，双击 `run.bat` 即可在 cmd 窗口**实时渲染播放**，无需等待视频出片。
 
 - 原片（上游成片）：[B 站 BV1xCai6aE9g](https://www.bilibili.com/video/BV1xCai6aE9g/)（原舞者版；本仓库重建的差异见下文）
 - 上游作者：MisakaZentai
@@ -18,7 +18,7 @@
 "world.execute(me);". Every frame is a pure function of song time. On the left is a DeepSeek Harness chat window,
 simulated with streaming text; on the right is a TUI model-visualisation engine drawn with PIL. This workspace is the
 live-terminal edition: frames are rendered straight into a cmd window in sync with the music (no video files, no
-Node/Playwright). Bring your own copy of the song, then run `live.bat`. The code is MIT; the artwork is CC BY-NC-SA
+Node/Playwright). Bring your own copy of the song, then run `run.bat`. The code is MIT; the artwork is CC BY-NC-SA
 4.0; the song and lyrics are not included (see NOTICE.md).*
 
 ## 实时终端播放（LIVE）
@@ -26,12 +26,12 @@ Node/Playwright). Bring your own copy of the song, then run `live.bat`. The code
 不生成视频文件：画面逐帧渲染进终端、随音乐同步播放。**画面全屏铺满整个终端窗口**（半块字符，160 列全宽），dsh 对话以浮层形式叠在画面底部 10 行——不再是独立的左侧栏，画面空间最大化（16:9 源几乎无黑边）。
 
 ```bat
-live.bat                                :: 播放 input/song.mp3
-live.bat --song path\to\any.mp3         :: 换一首歌
-live.bat --cols 200 --rows 56           :: 加大网格（窗口需够大，画面更清晰）
-live.bat --chat-rows 6                  :: 底部聊天浮层行数（默认 10）
-live.bat --render half                  :: 半块字符渲染（默认 braille 2×4 点阵，更细腻）
-live.bat --dot-offset 24              :: 自适应点亮偏移（默认 16，越大曲线越细）
+run.bat                                :: 播放 input/song.mp3
+run.bat --song path\to\any.mp3         :: 换一首歌
+run.bat --cols 200 --rows 56           :: 加大网格（窗口需够大，画面更清晰）
+run.bat --chat-rows 6                  :: 底部聊天浮层行数（默认 10）
+run.bat --render half                  :: 半块字符渲染（默认 braille 2×4 点阵，更细腻）
+run.bat --dot-offset 24              :: 自适应点亮偏移（默认 16，越大曲线越细）
 ```
 
 按键：q 退出 · space 暂停 · ←/→ 跳 ±5 s · [ / ] 跳 ±1 s · p 存当前帧到 `output/live/` · h 键位提示。
@@ -41,11 +41,11 @@ live.bat --dot-offset 24              :: 自适应点亮偏移（默认 16，越
 
 | 脚本 | 作用 |
 |---|---|
-| `live.bat` | 启动实时播放；首次运行自动创建 `.venv`、转码歌曲、生成音频特征与替身舞者缓存（约 30 秒） |
+| `run.bat` | 启动实时播放；首次运行自动创建 `.venv`、转码歌曲、生成音频特征与替身舞者缓存（约 30 秒） |
 | `preview.bat [秒]` | 离线渲染一张终端效果预览图到 `output/live/`（不启动播放器） |
 | `sync.bat ["提交信息"]` | git add -A → commit → `git push` 到 GitHub（ssh），默认提交信息带时间戳 |
 
-所有脚本都用 `%~dp0` 相对自身位置定位文件，不依赖固定盘符；`git clone` 到任何机器后双击 `live.bat` 即可运行。
+所有脚本都用 `%~dp0` 相对自身位置定位文件，不依赖固定盘符；`git clone` 到任何机器后双击 `run.bat` 即可运行。
 
 ## 在其他设备上运行
 
@@ -57,7 +57,7 @@ cd world-execute-cmd
 :: 放入你自己的歌曲（版权原因不入库）
 copy <你的歌曲> input\song.mp3
 :: 双击即用：没有 Python/ffmpeg 也会自动下载便携版并配置好
-live.bat
+run.bat
 ```
 
 要求：Windows 10/11、能联网（首次下载运行时与依赖）。`.tools/` 是自动下载的便携运行时目录（已在 .gitignore 中排除，不入库）。
@@ -70,15 +70,15 @@ sync.bat "修复左栏闪烁"
 
 ## 快速开始
 
-**零前置，双击即用**：任意 Windows 机器上双击 `live.bat` 即可播放。缺失的运行时（Python 3.12、ffmpeg）会自动下载**便携版**到项目内 `.tools/`（不污染系统、不依赖固定盘符），自动装依赖、生成缓存。
+**零前置，双击即用**：任意 Windows 机器上双击 `run.bat` 即可播放。缺失的运行时（Python 3.12、ffmpeg）会自动下载**便携版**到项目内 `.tools/`（不污染系统、不依赖固定盘符），自动装依赖、生成缓存。
 
 ```bat
-live.bat
+run.bat
 ```
 
 首次运行会按需下载（嵌入式 Python ~11 MB + 依赖 ~50 MB；ffmpeg 便携版 ~115 MB，仅当系统没有 ffmpeg 时），并自动生成运行时产物（22k 单声道音频、音频特征、替身舞者缓存，约 30 秒）。唯一的硬性前提：把歌曲放到 `input\song.mp3`（版权原因不入库）。
 
-- **画面**：默认 160×46 字符网格，窗口最大化效果最佳；可 `live.bat --cols 200 --rows 56` 加大网格。
+- **画面**：默认 160×46 字符网格，窗口最大化效果最佳；可 `run.bat --cols 200 --rows 56` 加大网格。
 - **性能**：默认无后期处理，普通机器即可流畅播放；`--full-post` 启用 bloom/scanline/vignette 完整后期（更慢）。
 
 ## 不在仓库里的，以及替代办法
@@ -101,7 +101,7 @@ live.bat
 
 复刻不是复制粘贴，而是按"可读性优先"重写了一版：
 
-- **src-layout**：全部代码收进唯一顶层包 `src/world_execute_replica/`（原根目录 `build.py`、散落的 `scripts/`、`film/` 平铺结构全部收纳），可通过 `pyproject.toml` 打包，`python -m world_execute_replica.live` 或 `live.bat` 均可启动。
+- **src-layout**：全部代码收进唯一顶层包 `src/world_execute_replica/`（原根目录 `build.py`、散落的 `scripts/`、`film/` 平铺结构全部收纳），可通过 `pyproject.toml` 打包，`python -m world_execute_replica.live` 或 `run.bat` 均可启动。
 - **语义化命名**：`batch_a1.py` → `dsh/batches/boot.py`、`dsh_her.py` → `dsh/compose.py`、`v2.py` → `tui/continuity/timeline.py`、`s_*.py` → `tui/continuity/shots/*.py` 等，一一对应，映射表见各模块文档字符串。
 - **绝对导入 + 兼容层**：历史层保留原始扁平 import（`import engine`、`import tuikit as tk`），运行时由 [`src/world_execute_replica/_compat.py`](src/world_execute_replica/_compat.py) 注册到新包路径，保证可读且不动历史逻辑。
 - **数据与代码分离**：时间轴/指纹/take 表在 `data/`，运行时生成物与缓存随播放按需生成。

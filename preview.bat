@@ -11,7 +11,7 @@ set "PY=%~dp0.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=%~dp0.tools\python\python.exe"
 
 if not exist "%PY%" (
-    echo preview: .venv missing. Run live.bat once first to set it up.
+    echo preview: .venv missing. Run run.bat once first to set it up.
     goto :fail
 )
 
