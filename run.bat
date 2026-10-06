@@ -61,7 +61,7 @@ if defined SYS_PY (
     echo [1/4] using system Python: %SYS_PY%
     if not exist "%~dp0.venv" "%SYS_PY%" -m venv "%~dp0.venv" || goto :fail
     set "PY=%~dp0.venv\Scripts\python.exe"
-    "%PY%" -m pip install --quiet --disable-pip-version-check -r "%~dp0requirements.txt" || goto :fail
+    "!PY!" -m pip install --disable-pip-version-check -r "%~dp0requirements.txt" || goto :fail
     goto :py_ready
 )
 
