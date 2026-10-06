@@ -20,6 +20,9 @@ rem         run.bat --dot-offset 24    (braille adaptive dot offset, default 16,
 rem         run.bat --no-audio --full-post --t0 118
 rem  keys:  q quit | space pause | left/right -/+5s | [ ] -/+1s | p screenshot | h hint
 rem  large regenerable caches can be wiped on demand with cleaner.bat.
+rem  NOTE for editors: inside any ( ... ) block never put unpaired '!' or '()'
+rem  parens inside quoted commands - delayed expansion swallows '!' and cmd's
+rem  brace pairing can truncate the line (see git log: pip + ffmpeg fixes).
 rem ===========================================================================
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
