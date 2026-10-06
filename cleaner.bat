@@ -69,6 +69,7 @@ goto :quit
 echo  [cleaner] audio caches ...
 del /q "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" 2>nul
 del /q "%~dp0src\world_execute_replica\tui\engine\audio_features.json" 2>nul
+del /q "%~dp0src\world_execute_replica\assets\audio\.placeholder" 2>nul
 exit /b 0
 
 :clean_dancer

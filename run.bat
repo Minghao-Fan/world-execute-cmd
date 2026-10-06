@@ -91,10 +91,23 @@ rem ============================ [3/4] song check ============================
 if not exist "%~dp0input\song.mp3" (
     echo.
     echo live: input\song.mp3 not found.
-    echo       Put your own copy of the song there ^(Mili - world.execute^(me^);^), then run again.
-    echo       The song is copyrighted and is not part of the repository.
+    echo       run.bat finishes ALL environment setup anyway: it mints a silent
+    echo       stand-in track so every cache builds and the picture plays.
+    echo       Later, drop Mili - world.execute^(me^) into input\song.mp3 and
+    echo       re-run - the stand-in caches are replaced automatically.
     if not exist "%~dp0input" mkdir "%~dp0input"
-    goto :fail
+    echo [3/4] minting silent stand-in track ^(no song.mp3 yet^) ...
+    "%FF%" -nostdin -v error -y -f lavfi -i "anullsrc=r=44100:cl=stereo" -t 211.9 "%~dp0input\song.mp3" || goto :fail
+    echo 1 > "%~dp0src\world_execute_replica\assets\audio\.placeholder"
+)
+rem  a real song arrived while a stand-in was in place: rebuild every cache.
+if exist "%~dp0input\song.mp3" if exist "%~dp0src\world_execute_replica\assets\audio\.placeholder" (
+    echo [3/4] real song detected - replacing stand-in caches ...
+    del /q "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" 2>nul
+    del /q "%~dp0src\world_execute_replica\tui\engine\audio_features.json" 2>nul
+    rd /s /q "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" 2>nul
+    rd /s /q "%~dp0src\world_execute_replica\dancer\pv_cache" 2>nul
+    del /q "%~dp0src\world_execute_replica\assets\audio\.placeholder" 2>nul
 )
 
 rem ============================ [4/4] assets + play ========================
@@ -105,6 +118,12 @@ if defined CLEAN (
     del /q "%~dp0src\world_execute_replica\tui\engine\audio_features.json" 2>nul
     rd /s /q "%~dp0src\world_execute_replica\tui\continuity\cache\h3_full_v1" 2>nul
     rd /s /q "%~dp0src\world_execute_replica\dancer\pv_cache" 2>nul
+)
+if exist "%~dp0src\world_execute_replica\assets\audio\.placeholder" (
+    echo.
+    echo       ^> no real song yet - playing the silent stand-in; add
+    echo         input\song.mp3 and re-run to hear the audio.
+    echo.
 )
 echo [3/4] checking runtime assets ...
 if not exist "%~dp0src\world_execute_replica\assets\audio\song_mono22k.wav" (
