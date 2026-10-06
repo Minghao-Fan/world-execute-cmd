@@ -233,19 +233,24 @@ def _fmt(sec: float) -> str:
 # --------------------------------------------------------------------------- ending easter egg
 
 def _big_text(text: str, cols: int) -> None:
-    """Big red half-block banner, same font family as the in-film EXECUTION hits."""
+    """Big red half-block banner, same font family as the in-film EXECUTION hits.
+    Newlines split the text into stacked lines."""
     from PIL import Image, ImageDraw, ImageFont
     font_path = "C:/Windows/Fonts/consolab.ttf"
+    lines_txt = text.split("\n")
     tw = max(40, cols * 2 - 4)
     size = 12
     while True:
         f = ImageFont.truetype(font_path, size)
-        w = f.getlength(text)
+        w = max(f.getlength(ln) for ln in lines_txt)
         if w >= tw * 0.92 or size >= 260:
             break
         size += 2
-    img = Image.new("RGB", (int(w) + 32, size * 2 + 32), (0, 0, 0))
-    ImageDraw.Draw(img).text((16, 16), text, font=f, fill=(255, 44, 32))
+    line_h = int(size * 1.25)
+    img = Image.new("RGB", (int(w) + 32, line_h * len(lines_txt) + 32), (0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for i, ln in enumerate(lines_txt):
+        d.text((16, 16 + i * line_h), ln, font=f, fill=(255, 44, 32))
     img = img.resize((tw, max(1, int(img.height * tw / img.width))))
     px = img.load()
 
@@ -277,7 +282,7 @@ def _egg(cols: int) -> None:
     out = sys.stdout
     if not sys.stdin.isatty():
         out.write("\x1b[2J\x1b[H")
-        _big_text("EXECUTION COMPLETE", cols)
+        _big_text("EXECUTION\nCOMPLETE", cols)
         return
     for _ in range(5):
         out.write("\x1b[2J\x1b[H")
@@ -290,7 +295,7 @@ def _egg(cols: int) -> None:
         if ans == "Y":
             break
     out.write("\x1b[2J\x1b[H")
-    _big_text("EXECUTION COMPLETE", cols)
+    _big_text("EXECUTION\nCOMPLETE", cols)
     time.sleep(10)
 
 
