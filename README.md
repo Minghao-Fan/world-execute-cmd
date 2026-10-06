@@ -170,4 +170,3 @@ tui/continuity/timeline.py      ← 入口：按时间轴选镜头 OWN[i](t)
 ## 上游制作记录
 
 原片制作过程中 AI 的使用情况（模型、工具、工作量）由上游作者记录，不属于本复刻仓库的运行内容；完整记录见 [`docs/original/README.original.md`](docs/original/README.original.md)。本仓库不含任何 AI 生成的画面——舞者帧全部由代码用鲸鱼娘立绘生成替身。
-程一牛逼
