@@ -81,7 +81,7 @@ if not defined FF (
         set "WEC_FF=%~dp0.tools\ffmpeg\bin"
     ) else (
         echo [2/4] ffmpeg not found - downloading portable build ^(~115 MB, one-time^) ...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';$d='%~dp0.tools';if(!(Test-Path $d)){New-Item -ItemType Directory -Force -Path $d|Out-Null};$z=Join-Path $d 'ff.zip';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;Invoke-WebRequest -Uri $u -OutFile $z;Expand-Archive -Path $z -DestinationPath $d -Force;Remove-Item $z -Force;Get-ChildItem $d -Directory -Filter 'ffmpeg-*' | Rename-Item -NewName 'ffmpeg'" || goto :fail
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';$d='%~dp0.tools';New-Item -ItemType Directory -Force -Path $d|Out-Null;$z=Join-Path $d 'ff.zip';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;Invoke-WebRequest -Uri $u -OutFile $z;Expand-Archive -Path $z -DestinationPath $d -Force;Remove-Item $z -Force;Get-ChildItem $d -Directory -Filter 'ffmpeg-*'|Rename-Item -NewName 'ffmpeg'" || goto :fail
         set "FF=%~dp0.tools\ffmpeg\bin\ffmpeg.exe"
         set "WEC_FF=%~dp0.tools\ffmpeg\bin"
     )
