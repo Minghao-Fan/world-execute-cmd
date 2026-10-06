@@ -87,6 +87,10 @@ if not defined FF (
         powershell -NoProfile -ExecutionPolicy Bypass -Command "$u1='https://gh-proxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';$u2='https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';$d='%~dp0.tools';New-Item -ItemType Directory -Force -Path $d|Out-Null;$z=Join-Path $d 'ff.zip';[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;try{Invoke-WebRequest -Uri $u1 -OutFile $z -TimeoutSec 300 -ErrorAction Stop}catch{Invoke-WebRequest -Uri $u2 -OutFile $z -TimeoutSec 300 -ErrorAction Stop};Expand-Archive -Path $z -DestinationPath $d -Force;Remove-Item $z -Force;Get-ChildItem $d -Directory -Filter 'ffmpeg-*'|Rename-Item -NewName 'ffmpeg'" || goto :fail
         set "FF=%~dp0.tools\ffmpeg\bin\ffmpeg.exe"
         set "WEC_FF=%~dp0.tools\ffmpeg\bin"
+        if not exist "%~dp0.tools\ffmpeg\bin\ffmpeg.exe" (
+            echo [2/4] ffmpeg download or extract failed - check the network and re-run.
+            goto :fail
+        )
     )
 )
 
