@@ -230,6 +230,70 @@ def _fmt(sec: float) -> str:
     return f"{int(mm):02d}:{ss:04.1f}"
 
 
+# --------------------------------------------------------------------------- ending easter egg
+
+def _big_text(text: str, cols: int) -> None:
+    """Big red half-block banner, same font family as the in-film EXECUTION hits."""
+    from PIL import Image, ImageDraw, ImageFont
+    font_path = "C:/Windows/Fonts/consolab.ttf"
+    tw = max(40, cols * 2 - 4)
+    size = 12
+    while True:
+        f = ImageFont.truetype(font_path, size)
+        w = f.getlength(text)
+        if w >= tw * 0.92 or size >= 260:
+            break
+        size += 2
+    img = Image.new("RGB", (int(w) + 32, size * 2 + 32), (0, 0, 0))
+    ImageDraw.Draw(img).text((16, 16), text, font=f, fill=(255, 44, 32))
+    img = img.resize((tw, max(1, int(img.height * tw / img.width))))
+    px = img.load()
+
+    def _lum(r: int, g: int, b: int) -> float:
+        return 0.299 * r + 0.587 * g + 0.114 * b
+
+    lines = []
+    for y in range(0, img.height - 1, 2):
+        row = []
+        for x in range(0, tw, 2):
+            r1, g1, b1 = px[x, y][:3]
+            r2, g2, b2 = px[x, min(y + 1, img.height - 1)][:3]
+            top = _lum(r1, g1, b1) > 55
+            bot = _lum(r2, g2, b2) > 55
+            ch = "█" if top and bot else ("▀" if top else ("▄" if bot else " "))
+            row.append(f"\x1b[38;2;255;44;32m{ch}")
+        lines.append("".join(row))
+    out = sys.stdout
+    out.write("\r\n" * max(0, cols // 4 - len(lines) // 2))
+    out.write("\r\n".join(lines))
+    out.write("\x1b[0m\r\n")
+    out.flush()
+
+
+def _egg(cols: int) -> None:
+    """Clear-screen interactive 'execution allowed? (Y/N)' - up to 5 asks, then a
+    big EXECUTION COMPLETE banner for 10 s, then the player exits as before.
+    Non-interactive runs (piped/background) skip the ask and just show the banner."""
+    out = sys.stdout
+    if not sys.stdin.isatty():
+        out.write("\x1b[2J\x1b[H")
+        _big_text("EXECUTION COMPLETE", cols)
+        return
+    for _ in range(5):
+        out.write("\x1b[2J\x1b[H")
+        out.write("execution allowed? (Y/N) ")
+        out.flush()
+        try:
+            ans = sys.stdin.readline().strip().upper()
+        except Exception:
+            ans = "Y"
+        if ans == "Y":
+            break
+    out.write("\x1b[2J\x1b[H")
+    _big_text("EXECUTION COMPLETE", cols)
+    time.sleep(10)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--song", default=str(ROOT / "input" / "song.mp3"), help="audio file to play (any format ffmpeg reads)")
@@ -385,6 +449,7 @@ def main() -> int:
         clock.stop()
         out.write(RESET + SHOW_CURSOR + ALT_OFF + "\r\n")
         out.flush()
+    _egg(a.cols)
     return 0
 
 
